@@ -1,6 +1,6 @@
 {
   "name": "@slantview/pi-agents",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Shareable Pi agents, skills, research workflows, and secure local-memory integration",
   "license": "MIT",

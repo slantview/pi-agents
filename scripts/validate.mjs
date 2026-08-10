@@ -22,6 +22,7 @@ for (const file of agents) {
   }
   const tools = text.match(/^tools:\s*(.+)$/m)?.[1]?.split(",").map((value) => value.trim()) ?? [];
   if (!tools.includes("mcp")) throw new Error(`agent lacks MCP access: ${path.relative(root, file)}`);
+  if (/\bkingpin\b/i.test(text)) throw new Error(`agent contains Kingpin-specific language: ${path.relative(root, file)}`);
 }
 
 const skills = files.filter((name) => name.endsWith(`${path.sep}SKILL.md`));
