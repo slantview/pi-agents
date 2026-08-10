@@ -1,0 +1,9 @@
+{
+  "baseUrl": "http://127.0.0.1:8377",
+  "fallbackProject": "main",
+  "projectStrategy": "git-remote",
+  "tokenReference": "op://Shared/LocalEnvironment/MCP/ZIKRA_PI_TOKEN",
+  "contextMaxTokens": 2000,
+  "autoContext": true,
+  "autoLogRuns": true
+}

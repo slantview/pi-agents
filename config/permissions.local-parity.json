@@ -1,0 +1,49 @@
+{
+  "$schema": "https://raw.githubusercontent.com/gotgenes/pi-packages/main/packages/pi-permission-system/schemas/permissions.schema.json",
+  "yoloMode": true,
+  "doublePressToConfirm": true,
+  "permission": {
+    "*": "allow",
+    "path": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow",
+      "*.pem": "deny",
+      "*.key": "deny",
+      "id_rsa": "deny",
+      "id_ed25519": "deny",
+      "~/.ssh/*": "deny",
+      "~/.gnupg/*": "deny",
+      "~/.aws/credentials": "deny",
+      "~/.pi/agent/auth.json": "deny"
+    },
+    "bash": {
+      "*": "allow",
+      "rm -rf *": "ask",
+      "sudo *": "ask",
+      "git push --force*": "ask",
+      "git reset --hard*": "ask",
+      "git clean *": "ask",
+      "git restore *": "ask",
+      "npm publish*": "ask",
+      "pnpm publish*": "ask",
+      "docker system prune*": "ask",
+      "kubectl delete *": "ask",
+      "terraform destroy*": "ask",
+      "tofu destroy*": "ask"
+    },
+    "mcp": {
+      "*": "allow",
+      "linear:save_*": "ask",
+      "linear_save_*": "ask",
+      "linear:create_*": "ask",
+      "linear_create_*": "ask",
+      "linear:update_*": "ask",
+      "linear_update_*": "ask",
+      "linear:delete_*": "ask",
+      "linear_delete_*": "ask"
+    },
+    "external_directory": "ask"
+  }
+}

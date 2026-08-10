@@ -1,0 +1,77 @@
+{
+  "settings": {
+    "toolPrefix": "short",
+    "autoAuth": true,
+    "directTools": false,
+    "scriptMode": false,
+    "outputGuard": true,
+    "hostConfigDiscovery": "off"
+  },
+  "mcpServers": {
+    "exa": {
+      "url": "https://mcp.exa.ai/mcp",
+      "headers": {
+        "x-api-key": "!op read 'op://Shared/LocalEnvironment/MCP/EXA_API_KEY'"
+      },
+      "lifecycle": "lazy"
+    },
+    "tavily": {
+      "url": "https://mcp.tavily.com/mcp",
+      "auth": "oauth",
+      "lifecycle": "lazy"
+    },
+    "linear": {
+      "url": "https://mcp.linear.app/mcp",
+      "auth": "oauth",
+      "lifecycle": "lazy"
+    },
+    "codebase-memory-mcp": {
+      "command": "codebase-memory-mcp",
+      "lifecycle": "lazy-keep-alive"
+    },
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "!op read 'op://Shared/LocalEnvironment/CONTEXT7_API_KEY'"
+      },
+      "lifecycle": "lazy"
+    },
+    "figma": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "figma-developer-mcp@0.13.2",
+        "--stdio"
+      ],
+      "env": {
+        "FIGMA_API_KEY": "!op read 'op://Shared/LocalEnvironment/MCP/FIGMA_API_KEY'",
+        "DO_NOT_TRACK": "1",
+        "IMAGE_DIR": "${FIGMA_IMAGE_DIR}"
+      },
+      "lifecycle": "lazy-keep-alive"
+    },
+    "mcp-image": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-image@0.12.1"
+      ],
+      "env": {
+        "GEMINI_API_KEY": "!op read 'op://Shared/LocalEnvironment/GEMINI_API_KEY'",
+        "IMAGE_OUTPUT_DIR": "${MCP_IMAGE_OUTPUT_DIR}",
+        "IMAGE_QUALITY": "balanced"
+      },
+      "lifecycle": "lazy-keep-alive"
+    },
+    "zikra": {
+      "url": "http://127.0.0.1:8377/mcp",
+      "auth": "bearer",
+      "bearerToken": "!op read 'op://Shared/LocalEnvironment/MCP/ZIKRA_PI_TOKEN'",
+      "headers": {
+        "X-Zikra-Runner": "!hostname -s"
+      },
+      "lifecycle": "lazy-keep-alive",
+      "requestTimeoutMs": 10000
+    }
+  }
+}
