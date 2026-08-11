@@ -65,12 +65,12 @@ Install codebase-memory-mcp from a reviewed release artifact. This setup was ver
 
 ## Quick start
 
-Install from the signed `v0.1.2` release tag rather than mutable default-branch code:
+Install from the signed `v0.1.3` release tag rather than mutable default-branch code:
 
 ```bash
-git clone --branch v0.1.2 --depth 1 https://github.com/slantview/pi-agents.git
+git clone --branch v0.1.3 --depth 1 https://github.com/slantview/pi-agents.git
 cd pi-agents
-git verify-tag v0.1.2
+git verify-tag v0.1.3
 ./install.sh --dry-run
 ./install.sh
 ```

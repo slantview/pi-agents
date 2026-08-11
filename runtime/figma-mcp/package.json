@@ -1,6 +1,6 @@
 {
   "name": "@slantview/pi-agents-figma-mcp-runtime",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Lockfile-controlled Figma MCP runtime for @slantview/pi-agents",
   "license": "MIT",
