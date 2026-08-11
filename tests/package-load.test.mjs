@@ -18,7 +18,7 @@ test("Pi loads every packaged extension and skill without diagnostics", async ()
 
     const extensionResult = loader.getExtensions();
     assert.deepEqual(extensionResult.errors, []);
-    assert.equal(extensionResult.extensions.length, 7);
+    assert.equal(extensionResult.extensions.length, 13);
 
     const skillResult = loader.getSkills();
     assert.deepEqual(skillResult.diagnostics.filter((entry) => entry.type === "error"), []);

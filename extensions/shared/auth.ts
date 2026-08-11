@@ -1,0 +1,42 @@
+// Adapted from pi-agent-extensions 0.5.2 under the MIT License.
+import type { Api, Model, ProviderStreamOptions } from "@earendil-works/pi-ai/compat";
+
+export type RequestAuth = Pick<ProviderStreamOptions, "apiKey" | "headers">;
+
+type ModelRegistryWithRequestAuth = {
+	getApiKeyAndHeaders: (
+		model: Model<Api>,
+	) => Promise<
+		| { ok: true; apiKey?: string; headers?: Record<string, string> }
+		| { ok: false; error: string }
+	>;
+};
+
+export async function getRequestAuth(
+	modelRegistry: ModelRegistryWithRequestAuth,
+	model: Model<Api>,
+): Promise<RequestAuth | undefined> {
+	const auth = await modelRegistry.getApiKeyAndHeaders(model);
+	if (!auth.ok) return undefined;
+	return { apiKey: auth.apiKey, headers: auth.headers };
+}
+
+export async function getRequestAuthOrThrow(
+	modelRegistry: ModelRegistryWithRequestAuth,
+	model: Model<Api>,
+): Promise<RequestAuth> {
+	const auth = await modelRegistry.getApiKeyAndHeaders(model);
+	if (!auth.ok) {
+		throw new Error(auth.error);
+	}
+	return { apiKey: auth.apiKey, headers: auth.headers };
+}
+
+export async function hasRequestAuth(
+	modelRegistry: ModelRegistryWithRequestAuth,
+	model: Model<Api>,
+): Promise<boolean> {
+	const auth = await modelRegistry.getApiKeyAndHeaders(model);
+	if (!auth.ok) return false;
+	return Boolean(auth.apiKey || (auth.headers && Object.keys(auth.headers).length > 0));
+}

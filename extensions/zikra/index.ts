@@ -1,16 +1,15 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { buildRunLogBody, deriveProjectName } from "./core.ts";
+import { buildRunLogBody, deriveProjectName, trustedOpReadInvocation } from "./core.ts";
 
 interface ZikraConfig {
   baseUrl: string;
   fallbackProject: string;
   projectStrategy: "git-remote";
   tokenReference: string;
-  opAccount?: string;
   contextMaxTokens: number;
   autoContext: boolean;
   autoLogRuns: boolean;
@@ -35,10 +34,8 @@ export default function zikraExtension(pi: ExtensionAPI) {
 
   async function loadToken(): Promise<string> {
     if (token) return token;
-    const args = ["read"];
-    if (config.opAccount) args.push("--account", config.opAccount);
-    args.push(config.tokenReference);
-    const result = await pi.exec("op", args, { timeout: 10_000 });
+    const invocation = trustedOpReadInvocation(getAgentDir(), config.tokenReference);
+    const result = await pi.exec(invocation.command, invocation.args, { timeout: 10_000 });
     const value = result.stdout.trim();
     if (result.code !== 0 || !value) throw new Error("Unable to read the Zikra token from 1Password");
     token = value;

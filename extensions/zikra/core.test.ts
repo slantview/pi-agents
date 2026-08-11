@@ -6,7 +6,19 @@ import {
   deriveProjectName,
   normalizeProjectName,
   sessionUsage,
+  trustedOpReadInvocation,
 } from "./core.ts";
+
+test("native Zikra token resolution uses the trusted absolute resolver", () => {
+  assert.deepEqual(
+    trustedOpReadInvocation("/trusted/agent", "op://Shared/LocalEnvironment/MCP/ZIKRA_PI_TOKEN"),
+    {
+      command: "/bin/sh",
+      args: ["/trusted/agent/runtime/op-read.sh", "op://Shared/LocalEnvironment/MCP/ZIKRA_PI_TOKEN"],
+    },
+  );
+  assert.throws(() => trustedOpReadInvocation("/trusted/agent", "plaintext"), /1Password reference/i);
+});
 
 test("normalizeProjectName produces stable lowercase namespaces", () => {
   assert.equal(normalizeProjectName("Kingpin Security / API"), "kingpin-security-api");

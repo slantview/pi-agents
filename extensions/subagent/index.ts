@@ -29,6 +29,7 @@ import {
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
+import { normalizeToolArguments, sanitizeSubagentLine, sanitizeSubagentText } from "./display.ts";
 import { assertProjectAgentAccess, resolveContainedCwd } from "./security.ts";
 
 const MAX_PARALLEL_TASKS = 8;
@@ -65,7 +66,7 @@ function formatUsageStats(
 	if (usage.contextTokens && usage.contextTokens > 0) {
 		parts.push(`ctx:${formatTokens(usage.contextTokens)}`);
 	}
-	if (model) parts.push(model);
+	if (model) parts.push(sanitizeSubagentLine(model));
 	return parts.join(" ");
 }
 
@@ -75,18 +76,19 @@ function formatToolCall(
 	themeFg: (color: any, text: string) => string,
 ): string {
 	const shortenPath = (p: string) => {
+		const safePath = sanitizeSubagentLine(p);
 		const home = os.homedir();
-		return p.startsWith(home) ? `~${p.slice(home.length)}` : p;
+		return safePath.startsWith(home) ? `~${safePath.slice(home.length)}` : safePath;
 	};
 
 	switch (toolName) {
 		case "bash": {
-			const command = (args.command as string) || "...";
+			const command = sanitizeSubagentLine(String(args.command || "..."));
 			const preview = command.length > 60 ? `${command.slice(0, 60)}...` : command;
 			return themeFg("muted", "$ ") + themeFg("toolOutput", preview);
 		}
 		case "read": {
-			const rawPath = (args.file_path || args.path || "...") as string;
+			const rawPath = String(args.file_path || args.path || "...");
 			const filePath = shortenPath(rawPath);
 			const offset = args.offset as number | undefined;
 			const limit = args.limit as number | undefined;
@@ -99,30 +101,30 @@ function formatToolCall(
 			return themeFg("muted", "read ") + text;
 		}
 		case "write": {
-			const rawPath = (args.file_path || args.path || "...") as string;
+			const rawPath = String(args.file_path || args.path || "...");
 			const filePath = shortenPath(rawPath);
-			const content = (args.content || "") as string;
+			const content = String(args.content || "");
 			const lines = content.split("\n").length;
 			let text = themeFg("muted", "write ") + themeFg("accent", filePath);
 			if (lines > 1) text += themeFg("dim", ` (${lines} lines)`);
 			return text;
 		}
 		case "edit": {
-			const rawPath = (args.file_path || args.path || "...") as string;
+			const rawPath = String(args.file_path || args.path || "...");
 			return themeFg("muted", "edit ") + themeFg("accent", shortenPath(rawPath));
 		}
 		case "ls": {
-			const rawPath = (args.path || ".") as string;
+			const rawPath = String(args.path || ".");
 			return themeFg("muted", "ls ") + themeFg("accent", shortenPath(rawPath));
 		}
 		case "find": {
-			const pattern = (args.pattern || "*") as string;
-			const rawPath = (args.path || ".") as string;
+			const pattern = sanitizeSubagentLine(String(args.pattern || "*"));
+			const rawPath = String(args.path || ".");
 			return themeFg("muted", "find ") + themeFg("accent", pattern) + themeFg("dim", ` in ${shortenPath(rawPath)}`);
 		}
 		case "grep": {
-			const pattern = (args.pattern || "") as string;
-			const rawPath = (args.path || ".") as string;
+			const pattern = sanitizeSubagentLine(String(args.pattern || ""));
+			const rawPath = String(args.path || ".");
 			return (
 				themeFg("muted", "grep ") +
 				themeFg("accent", `/${pattern}/`) +
@@ -130,9 +132,9 @@ function formatToolCall(
 			);
 		}
 		default: {
-			const argsStr = JSON.stringify(args);
+			const argsStr = sanitizeSubagentLine(JSON.stringify(args) ?? "");
 			const preview = argsStr.length > 50 ? `${argsStr.slice(0, 50)}...` : argsStr;
-			return themeFg("accent", toolName) + themeFg("dim", ` ${preview}`);
+			return themeFg("accent", sanitizeSubagentLine(toolName)) + themeFg("dim", ` ${preview}`);
 		}
 	}
 }
@@ -180,15 +182,19 @@ function getFinalOutput(messages: Message[]): string {
 	return "";
 }
 
+function getFinalDisplayOutput(messages: Message[]): string {
+	return sanitizeSubagentText(getFinalOutput(messages));
+}
+
 function isFailedResult(result: SingleResult): boolean {
 	return result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
 }
 
 function getResultOutput(result: SingleResult): string {
-	if (isFailedResult(result)) {
-		return result.errorMessage || result.stderr || getFinalOutput(result.messages) || "(no output)";
-	}
-	return getFinalOutput(result.messages) || "(no output)";
+	const output = isFailedResult(result)
+		? result.errorMessage || result.stderr || getFinalOutput(result.messages) || "(no output)"
+		: getFinalOutput(result.messages) || "(no output)";
+	return sanitizeSubagentText(output);
 }
 
 function truncateParallelOutput(output: string): string {
@@ -202,15 +208,15 @@ function truncateParallelOutput(output: string): string {
 	return `${truncated}\n\n[Output truncated: ${byteLength - Buffer.byteLength(truncated, "utf8")} bytes omitted. Full output preserved in tool details.]`;
 }
 
-type DisplayItem = { type: "text"; text: string } | { type: "toolCall"; name: string; args: Record<string, any> };
+type DisplayItem = { type: "text"; text: string } | { type: "toolCall"; name: string; args: Record<string, unknown> };
 
 function getDisplayItems(messages: Message[]): DisplayItem[] {
 	const items: DisplayItem[] = [];
 	for (const msg of messages) {
 		if (msg.role === "assistant") {
 			for (const part of msg.content) {
-				if (part.type === "text") items.push({ type: "text", text: part.text });
-				else if (part.type === "toolCall") items.push({ type: "toolCall", name: part.name, args: part.arguments });
+				if (part.type === "text") items.push({ type: "text", text: sanitizeSubagentText(part.text) });
+				else if (part.type === "toolCall") items.push({ type: "toolCall", name: sanitizeSubagentLine(part.name), args: normalizeToolArguments(part.arguments) });
 			}
 		}
 	}
@@ -279,7 +285,7 @@ async function runSingleAgent(
 	const agent = agents.find((a) => a.name === agentName);
 
 	if (!agent) {
-		const available = agents.map((a) => `"${a.name}"`).join(", ") || "none";
+		const available = agents.map((a) => `"${sanitizeSubagentLine(a.name)}"`).join(", ") || "none";
 		return {
 			agent: agentName,
 			agentSource: "unknown",
@@ -491,7 +497,7 @@ export default function (pi: ExtensionAPI) {
 				});
 
 			if (modeCount !== 1) {
-				const available = agents.map((a) => `${a.name} (${a.source})`).join(", ") || "none";
+				const available = agents.map((a) => `${sanitizeSubagentLine(a.name)} (${sanitizeSubagentLine(a.source)})`).join(", ") || "none";
 				return {
 					content: [
 						{
@@ -568,7 +574,7 @@ export default function (pi: ExtensionAPI) {
 					if (isError) {
 						const errorMsg = getResultOutput(result);
 						return {
-							content: [{ type: "text", text: `Chain stopped at step ${i + 1} (${step.agent}): ${errorMsg}` }],
+							content: [{ type: "text", text: `Chain stopped at step ${i + 1} (${sanitizeSubagentLine(step.agent)}): ${errorMsg}` }],
 							details: makeDetails("chain")(results),
 							isError: true,
 						};
@@ -576,7 +582,7 @@ export default function (pi: ExtensionAPI) {
 					previousOutput = getFinalOutput(result.messages);
 				}
 				return {
-					content: [{ type: "text", text: getFinalOutput(results[results.length - 1].messages) || "(no output)" }],
+					content: [{ type: "text", text: getFinalDisplayOutput(results[results.length - 1].messages) || "(no output)" }],
 					details: makeDetails("chain")(results),
 				};
 			}
@@ -649,9 +655,9 @@ export default function (pi: ExtensionAPI) {
 				const summaries = results.map((r) => {
 					const output = truncateParallelOutput(getResultOutput(r));
 					const status = isFailedResult(r)
-						? `failed${r.stopReason && r.stopReason !== "end" ? ` (${r.stopReason})` : ""}`
+						? `failed${r.stopReason && r.stopReason !== "end" ? ` (${sanitizeSubagentLine(r.stopReason)})` : ""}`
 						: "completed";
-					return `### [${r.agent}] ${status}\n\n${output}`;
+					return `### [${sanitizeSubagentLine(r.agent)}] ${status}\n\n${output}`;
 				});
 				return {
 					content: [
@@ -680,18 +686,18 @@ export default function (pi: ExtensionAPI) {
 				if (isError) {
 					const errorMsg = getResultOutput(result);
 					return {
-						content: [{ type: "text", text: `Agent ${result.stopReason || "failed"}: ${errorMsg}` }],
+						content: [{ type: "text", text: `Agent ${sanitizeSubagentLine(result.stopReason || "failed")}: ${errorMsg}` }],
 						details: makeDetails("single")([result]),
 						isError: true,
 					};
 				}
 				return {
-					content: [{ type: "text", text: getFinalOutput(result.messages) || "(no output)" }],
+					content: [{ type: "text", text: getFinalDisplayOutput(result.messages) || "(no output)" }],
 					details: makeDetails("single")([result]),
 				};
 			}
 
-			const available = agents.map((a) => `${a.name} (${a.source})`).join(", ") || "none";
+			const available = agents.map((a) => `${sanitizeSubagentLine(a.name)} (${sanitizeSubagentLine(a.source)})`).join(", ") || "none";
 			return {
 				content: [{ type: "text", text: `Invalid parameters. Available agents: ${available}` }],
 				details: makeDetails("single")([]),
@@ -708,13 +714,13 @@ export default function (pi: ExtensionAPI) {
 				for (let i = 0; i < Math.min(args.chain.length, 3); i++) {
 					const step = args.chain[i];
 					// Clean up {previous} placeholder for display
-					const cleanTask = step.task.replace(/\{previous\}/g, "").trim();
+					const cleanTask = sanitizeSubagentLine(step.task.replace(/\{previous\}/g, ""));
 					const preview = cleanTask.length > 40 ? `${cleanTask.slice(0, 40)}...` : cleanTask;
 					text +=
 						"\n  " +
 						theme.fg("muted", `${i + 1}.`) +
 						" " +
-						theme.fg("accent", step.agent) +
+						theme.fg("accent", sanitizeSubagentLine(step.agent)) +
 						theme.fg("dim", ` ${preview}`);
 				}
 				if (args.chain.length > 3) text += `\n  ${theme.fg("muted", `... +${args.chain.length - 3} more`)}`;
@@ -726,14 +732,16 @@ export default function (pi: ExtensionAPI) {
 					theme.fg("accent", `parallel (${args.tasks.length} tasks)`) +
 					theme.fg("muted", ` [${scope}]`);
 				for (const t of args.tasks.slice(0, 3)) {
-					const preview = t.task.length > 40 ? `${t.task.slice(0, 40)}...` : t.task;
-					text += `\n  ${theme.fg("accent", t.agent)}${theme.fg("dim", ` ${preview}`)}`;
+					const task = sanitizeSubagentLine(t.task);
+					const preview = task.length > 40 ? `${task.slice(0, 40)}...` : task;
+					text += `\n  ${theme.fg("accent", sanitizeSubagentLine(t.agent))}${theme.fg("dim", ` ${preview}`)}`;
 				}
 				if (args.tasks.length > 3) text += `\n  ${theme.fg("muted", `... +${args.tasks.length - 3} more`)}`;
 				return new Text(text, 0, 0);
 			}
-			const agentName = args.agent || "...";
-			const preview = args.task ? (args.task.length > 60 ? `${args.task.slice(0, 60)}...` : args.task) : "...";
+			const agentName = sanitizeSubagentLine(args.agent || "...");
+			const task = sanitizeSubagentLine(args.task || "...");
+			const preview = task.length > 60 ? `${task.slice(0, 60)}...` : task;
 			let text =
 				theme.fg("toolTitle", theme.bold("subagent ")) +
 				theme.fg("accent", agentName) +
@@ -746,7 +754,7 @@ export default function (pi: ExtensionAPI) {
 			const details = result.details as SubagentDetails | undefined;
 			if (!details || details.results.length === 0) {
 				const text = result.content[0];
-				return new Text(text?.type === "text" ? text.text : "(no output)", 0, 0);
+				return new Text(text?.type === "text" ? sanitizeSubagentText(text.text) : "(no output)", 0, 0);
 			}
 
 			const mdTheme = getMarkdownTheme();
@@ -772,18 +780,18 @@ export default function (pi: ExtensionAPI) {
 				const isError = isFailedResult(r);
 				const icon = isError ? theme.fg("error", "✗") : theme.fg("success", "✓");
 				const displayItems = getDisplayItems(r.messages);
-				const finalOutput = getFinalOutput(r.messages);
+				const finalOutput = getFinalDisplayOutput(r.messages);
 
 				if (expanded) {
 					const container = new Container();
-					let header = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${theme.fg("muted", ` (${r.agentSource})`)}`;
-					if (isError && r.stopReason) header += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
+					let header = `${icon} ${theme.fg("toolTitle", theme.bold(sanitizeSubagentLine(r.agent)))}${theme.fg("muted", ` (${sanitizeSubagentLine(r.agentSource)})`)}`;
+					if (isError && r.stopReason) header += ` ${theme.fg("error", `[${sanitizeSubagentLine(r.stopReason)}]`)}`;
 					container.addChild(new Text(header, 0, 0));
 					if (isError && r.errorMessage)
-						container.addChild(new Text(theme.fg("error", `Error: ${r.errorMessage}`), 0, 0));
+						container.addChild(new Text(theme.fg("error", `Error: ${sanitizeSubagentText(r.errorMessage)}`), 0, 0));
 					container.addChild(new Spacer(1));
 					container.addChild(new Text(theme.fg("muted", "─── Task ───"), 0, 0));
-					container.addChild(new Text(theme.fg("dim", r.task), 0, 0));
+					container.addChild(new Text(theme.fg("dim", sanitizeSubagentText(r.task)), 0, 0));
 					container.addChild(new Spacer(1));
 					container.addChild(new Text(theme.fg("muted", "─── Output ───"), 0, 0));
 					if (displayItems.length === 0 && !finalOutput) {
@@ -812,9 +820,9 @@ export default function (pi: ExtensionAPI) {
 					return container;
 				}
 
-				let text = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${theme.fg("muted", ` (${r.agentSource})`)}`;
-				if (isError && r.stopReason) text += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
-				if (isError && r.errorMessage) text += `\n${theme.fg("error", `Error: ${r.errorMessage}`)}`;
+				let text = `${icon} ${theme.fg("toolTitle", theme.bold(sanitizeSubagentLine(r.agent)))}${theme.fg("muted", ` (${sanitizeSubagentLine(r.agentSource)})`)}`;
+				if (isError && r.stopReason) text += ` ${theme.fg("error", `[${sanitizeSubagentLine(r.stopReason)}]`)}`;
+				if (isError && r.errorMessage) text += `\n${theme.fg("error", `Error: ${sanitizeSubagentText(r.errorMessage)}`)}`;
 				else if (displayItems.length === 0) text += `\n${theme.fg("muted", "(no output)")}`;
 				else {
 					text += `\n${renderDisplayItems(displayItems, COLLAPSED_ITEM_COUNT)}`;
@@ -858,17 +866,17 @@ export default function (pi: ExtensionAPI) {
 					for (const r of details.results) {
 						const rIcon = r.exitCode === 0 ? theme.fg("success", "✓") : theme.fg("error", "✗");
 						const displayItems = getDisplayItems(r.messages);
-						const finalOutput = getFinalOutput(r.messages);
+						const finalOutput = getFinalDisplayOutput(r.messages);
 
 						container.addChild(new Spacer(1));
 						container.addChild(
 							new Text(
-								`${theme.fg("muted", `─── Step ${r.step}: `) + theme.fg("accent", r.agent)} ${rIcon}`,
+								`${theme.fg("muted", `─── Step ${r.step}: `) + theme.fg("accent", sanitizeSubagentLine(r.agent))} ${rIcon}`,
 								0,
 								0,
 							),
 						);
-						container.addChild(new Text(theme.fg("muted", "Task: ") + theme.fg("dim", r.task), 0, 0));
+						container.addChild(new Text(theme.fg("muted", "Task: ") + theme.fg("dim", sanitizeSubagentText(r.task)), 0, 0));
 
 						// Show tool calls
 						for (const item of displayItems) {
@@ -910,7 +918,7 @@ export default function (pi: ExtensionAPI) {
 				for (const r of details.results) {
 					const rIcon = r.exitCode === 0 ? theme.fg("success", "✓") : theme.fg("error", "✗");
 					const displayItems = getDisplayItems(r.messages);
-					text += `\n\n${theme.fg("muted", `─── Step ${r.step}: `)}${theme.fg("accent", r.agent)} ${rIcon}`;
+					text += `\n\n${theme.fg("muted", `─── Step ${r.step}: `)}${theme.fg("accent", sanitizeSubagentLine(r.agent))} ${rIcon}`;
 					if (displayItems.length === 0) text += `\n${theme.fg("muted", "(no output)")}`;
 					else text += `\n${renderDisplayItems(displayItems, 5)}`;
 				}
@@ -947,13 +955,13 @@ export default function (pi: ExtensionAPI) {
 					for (const r of details.results) {
 						const rIcon = isFailedResult(r) ? theme.fg("error", "✗") : theme.fg("success", "✓");
 						const displayItems = getDisplayItems(r.messages);
-						const finalOutput = getFinalOutput(r.messages);
+						const finalOutput = getFinalDisplayOutput(r.messages);
 
 						container.addChild(new Spacer(1));
 						container.addChild(
-							new Text(`${theme.fg("muted", "─── ") + theme.fg("accent", r.agent)} ${rIcon}`, 0, 0),
+							new Text(`${theme.fg("muted", "─── ") + theme.fg("accent", sanitizeSubagentLine(r.agent))} ${rIcon}`, 0, 0),
 						);
-						container.addChild(new Text(theme.fg("muted", "Task: ") + theme.fg("dim", r.task), 0, 0));
+						container.addChild(new Text(theme.fg("muted", "Task: ") + theme.fg("dim", sanitizeSubagentText(r.task)), 0, 0));
 
 						// Show tool calls
 						for (const item of displayItems) {
@@ -996,7 +1004,7 @@ export default function (pi: ExtensionAPI) {
 								? theme.fg("error", "✗")
 								: theme.fg("success", "✓");
 					const displayItems = getDisplayItems(r.messages);
-					text += `\n\n${theme.fg("muted", "─── ")}${theme.fg("accent", r.agent)} ${rIcon}`;
+					text += `\n\n${theme.fg("muted", "─── ")}${theme.fg("accent", sanitizeSubagentLine(r.agent))} ${rIcon}`;
 					if (displayItems.length === 0)
 						text += `\n${theme.fg("muted", r.exitCode === -1 ? "(running...)" : "(no output)")}`;
 					else text += `\n${renderDisplayItems(displayItems, 5)}`;
@@ -1010,7 +1018,7 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			const text = result.content[0];
-			return new Text(text?.type === "text" ? text.text : "(no output)", 0, 0);
+			return new Text(text?.type === "text" ? sanitizeSubagentText(text.text) : "(no output)", 0, 0);
 		},
 	});
 }

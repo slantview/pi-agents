@@ -37,27 +37,23 @@
       "lifecycle": "lazy"
     },
     "figma": {
-      "command": "npx",
+      "command": "/bin/sh",
       "args": [
-        "-y",
-        "figma-developer-mcp@0.13.2",
-        "--stdio"
+        "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/runtime/figma-mcp/launch.sh"
       ],
       "env": {
-        "FIGMA_API_KEY": "!op read 'op://Shared/LocalEnvironment/MCP/FIGMA_API_KEY'",
         "DO_NOT_TRACK": "1",
         "IMAGE_DIR": "${FIGMA_IMAGE_DIR}"
       },
       "lifecycle": "lazy-keep-alive"
     },
     "mcp-image": {
-      "command": "npx",
+      "command": "/bin/sh",
       "args": [
-        "-y",
-        "mcp-image@0.12.1"
+        "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/runtime/mcp-image/launch.sh"
       ],
       "env": {
-        "GEMINI_API_KEY": "!op read 'op://Shared/LocalEnvironment/GEMINI_API_KEY'",
+        "IMAGE_INPUT_DIR": "${MCP_IMAGE_INPUT_DIR}",
         "IMAGE_OUTPUT_DIR": "${MCP_IMAGE_OUTPUT_DIR}",
         "IMAGE_QUALITY": "balanced"
       },
@@ -72,6 +68,74 @@
       },
       "lifecycle": "lazy-keep-alive",
       "requestTimeoutMs": 10000
+    },
+    "paperclip": {
+      "command": "/bin/sh",
+      "args": [
+        "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/runtime/paperclip-mcp/launch.sh"
+      ],
+      "lifecycle": "lazy-keep-alive",
+      "requestTimeoutMs": 120000,
+      "exposeResources": false,
+      "includeTools": [
+        "paperclipListAgents",
+        "paperclipGetAgent",
+        "paperclipListIssues",
+        "paperclipGetIssue",
+        "paperclipGetHeartbeatContext",
+        "paperclipListComments",
+        "paperclipGetComment",
+        "paperclipListIssueApprovals",
+        "paperclipListDocuments",
+        "paperclipGetDocument",
+        "paperclipListDocumentRevisions",
+        "paperclipListProjects",
+        "paperclipGetProject",
+        "paperclipGetIssueWorkspaceRuntime",
+        "paperclipControlIssueWorkspaceServices",
+        "paperclipWaitForIssueWorkspaceService",
+        "paperclipListGoals",
+        "paperclipGetGoal",
+        "paperclipListApprovals",
+        "paperclipCreateApproval",
+        "paperclipGetApproval",
+        "paperclipGetApprovalIssues",
+        "paperclipListApprovalComments",
+        "paperclipCreateIssue",
+        "paperclipUpdateIssue",
+        "paperclipCheckoutIssue",
+        "paperclipReleaseIssue",
+        "paperclipAddComment",
+        "paperclipSuggestTasks",
+        "paperclipAskUserQuestions",
+        "paperclipRequestConfirmation",
+        "paperclipRequestCheckboxConfirmation",
+        "paperclipUpsertIssueDocument",
+        "paperclipRestoreIssueDocumentRevision",
+        "paperclipLinkIssueApproval",
+        "paperclipUnlinkIssueApproval",
+        "paperclipApprovalDecision",
+        "paperclipAddApprovalComment"
+      ],
+      "approveTools": [
+        "paperclipControlIssueWorkspaceServices",
+        "paperclipCreateApproval",
+        "paperclipCreateIssue",
+        "paperclipUpdateIssue",
+        "paperclipCheckoutIssue",
+        "paperclipReleaseIssue",
+        "paperclipAddComment",
+        "paperclipSuggestTasks",
+        "paperclipAskUserQuestions",
+        "paperclipRequestConfirmation",
+        "paperclipRequestCheckboxConfirmation",
+        "paperclipUpsertIssueDocument",
+        "paperclipRestoreIssueDocumentRevision",
+        "paperclipLinkIssueApproval",
+        "paperclipUnlinkIssueApproval",
+        "paperclipApprovalDecision",
+        "paperclipAddApprovalComment"
+      ]
     }
   }
 }

@@ -1,0 +1,16 @@
+{
+  "name": "@slantview/pi-agents-figma-mcp-runtime",
+  "version": "0.1.2",
+  "private": true,
+  "description": "Lockfile-controlled Figma MCP runtime for @slantview/pi-agents",
+  "license": "MIT",
+  "dependencies": {
+    "figma-developer-mcp": "0.13.2"
+  },
+  "overrides": {
+    "figma-developer-mcp": {
+      "@modelcontextprotocol/sdk": "1.30.0"
+    },
+    "@hono/node-server": "2.1.0"
+  }
+}

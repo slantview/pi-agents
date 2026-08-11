@@ -1,6 +1,6 @@
 {
   "name": "@slantview/pi-agents",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Shareable Pi agents, skills, research workflows, and secure local-memory integration",
   "license": "MIT",
@@ -13,18 +13,24 @@
     "codebase-memory"
   ],
   "scripts": {
-    "test": "bash tests/install_test.sh && node --test tests/*.test.mjs extensions/subagent/*.test.ts extensions/zikra/*.test.ts",
+    "test": "node scripts/harden-dependencies.mjs && bash tests/install_test.sh && node --test tests/*.test.mjs extensions/btw/*.test.ts extensions/handoff/*.test.ts extensions/mcp-isolated/*.test.ts extensions/notify/*.test.ts extensions/sessions/*.test.ts extensions/shared/*.test.ts extensions/subagent/*.test.ts extensions/zikra/*.test.ts",
     "check": "bash scripts/check.sh"
   },
   "pi": {
     "extensions": [
       "./extensions/subagent/index.ts",
       "./extensions/zikra/index.ts",
-      "./node_modules/pi-mcp-adapter/index.ts",
+      "./extensions/mcp-isolated/index.ts",
       "./node_modules/@gotgenes/pi-permission-system/src/index.ts",
       "./node_modules/@narumitw/pi-lsp/src/index.ts",
       "./node_modules/@narumitw/pi-plan-mode/src/index.ts",
-      "./node_modules/@eko24ive/pi-ask/src/index.ts"
+      "./node_modules/@eko24ive/pi-ask/src/index.ts",
+      "./extensions/sessions/index.ts",
+      "./extensions/handoff/index.ts",
+      "./node_modules/pi-agent-extensions/extensions/context/index.ts",
+      "./node_modules/pi-agent-extensions/extensions/session-breakdown/index.ts",
+      "./extensions/btw/index.ts",
+      "./extensions/notify/index.ts"
     ],
     "skills": [
       "./skills",
@@ -36,6 +42,7 @@
     "@gotgenes/pi-permission-system": "24.0.0",
     "@narumitw/pi-lsp": "0.39.0",
     "@narumitw/pi-plan-mode": "0.40.0",
+    "pi-agent-extensions": "0.5.2",
     "pi-mcp-adapter": "2.21.2"
   },
   "peerDependencies": {

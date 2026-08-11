@@ -1,0 +1,11 @@
+{
+  "name": "@slantview/pi-agents-paperclip-mcp-runtime",
+  "version": "0.1.2",
+  "private": true,
+  "description": "Lockfile-controlled Paperclip MCP runtime for @slantview/pi-agents",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@paperclipai/mcp-server": "2026.722.0"
+  }
+}

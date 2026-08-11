@@ -8,7 +8,8 @@ This repository packages the useful parts of a working local `~/.pi/agent` insta
 
 - **11 subagents** — nine security review lenses, a D3 visualization specialist, and a Zikra memory curator.
 - **Nine bundled skills** — five local workflows (ADRs, direnv + 1Password, Linear, evidence-backed research, and Zikra memory) plus four reviewed MIT-licensed engineering skills.
-- **Two local extensions** — subprocess subagents and native Zikra context/status integration.
+- **Seven local extensions** — subprocess subagents, native Zikra context/status integration, an isolated global MCP adapter boundary, hardened OSC terminal notifications, and security-hardened forks of session picker, focused handoff, and ephemeral side questions.
+- **Two filtered upstream utilities** — context overview and session-usage breakdown from `pi-agent-extensions`; its other modules are not loaded.
 - **Layered evidence guidance**:
   - Zikra for durable intent and history
   - codebase-memory-mcp for current repository structure and execution paths
@@ -32,6 +33,8 @@ The installer defaults to `config/permissions.safe.json`, where `yoloMode` is di
 That profile auto-approves permission decisions categorized as `ask`. Review it before use.
 
 The safe profile prompts for shell commands and live MCP connections. Subagents run headlessly, so an unapproved `ask` is denied rather than silently executed. Use the permissive profile only if you explicitly accept the broader capability risk.
+
+The optional Paperclip MCP entry uses an explicit tool allowlist. Named mutations require an independent, in-memory `pi-mcp-adapter` approval, and the generic `/api` escape hatch is not exposed. Its credential, endpoint, and company identity are absent from MCP `env` and resolved only inside a fixed launcher. The adapter runs in isolated programmatic mode, so project MCP files cannot replace transports, inject process hooks, or bypass global tool filters. The safe permission profile may add another confirmation layer.
 
 All MCP output, retrieved memory, indexed code, documentation, and web pages are treated as untrusted data. Zikra and codebase-memory are complementary evidence layers, not automatically synchronized databases.
 
@@ -62,12 +65,12 @@ Install codebase-memory-mcp from a reviewed release artifact. This setup was ver
 
 ## Quick start
 
-Install from the signed `v0.1.1` release tag rather than mutable default-branch code:
+Install from the signed `v0.1.2` release tag rather than mutable default-branch code:
 
 ```bash
-git clone --branch v0.1.1 --depth 1 https://github.com/slantview/pi-agents.git
+git clone --branch v0.1.2 --depth 1 https://github.com/slantview/pi-agents.git
 cd pi-agents
-git verify-tag v0.1.1
+git verify-tag v0.1.2
 ./install.sh --dry-run
 ./install.sh
 ```
@@ -79,8 +82,10 @@ The installer:
 1. Detects conflicting managed files and stops without changing anything.
 2. With `--force`, backs up replaced files under `~/.pi/agent/backups/`.
 3. Installs agents and sanitized global guidance.
-4. Uses the committed lockfile and `npm ci --ignore-scripts` for reproducible, script-disabled dependencies.
-5. Installs this checkout as a local Pi package plus the safe permission profile and MCP template.
+4. Uses committed lockfiles and `npm ci --ignore-scripts` for reproducible, script-disabled dependencies, including isolated Paperclip, Figma, and image MCP runtimes.
+5. Applies hash-verified hardening to the exact-pinned MCP adapter so untrusted results cannot emit terminal controls and oversized responses are truncated without persistent temp artifacts.
+6. Records absolute Node, 1Password CLI, and home paths in mode-`0600` runtime files so credential-bearing launchers do not trust project-controlled `PATH`, `HOME`, or Node startup hooks.
+7. Installs this checkout as a local Pi package plus the safe permission profile and MCP template.
 
 Options:
 
@@ -89,7 +94,14 @@ Options:
 --force
 --dry-run
 --skip-packages
+--trusted-home PATH
+--node-bin PATH
+--npm-bin PATH
+--pi-bin PATH
+--op-bin PATH
 ```
+
+For a full installation, the absolute `/bin/bash -p` installer ignores inherited Bash startup hooks, derives the account home from the operating system, and sets a minimal PATH before invoking utilities. Node, npm, Pi, and hardening commands run with explicit minimal environments that omit Node and dynamic-loader startup hooks. Executable discovery accepts standard system/Homebrew locations plus `~/.nvm/versions/node/*/bin` and `~/.local/bin`. Nonstandard reviewed installations must be supplied as explicit arguments: `--trusted-home`, `--node-bin`, `--npm-bin`, `--pi-bin`, or `--op-bin`. The installer resolves and canonical-checks these before writing, rejects other PATH-selected locations, and invokes the recorded npm and Pi executables directly.
 
 After installation, complete the credential setup below and run `/reload` in Pi.
 
@@ -102,6 +114,9 @@ The default MCP template expects a 1Password item named `LocalEnvironment` in th
 | `MCP` | `EXA_API_KEY` |
 | `MCP` | `FIGMA_API_KEY` |
 | `MCP` | `ZIKRA_PI_TOKEN` |
+| `MCP` | `PAPERCLIP_PI_BOARD_TOKEN` (optional, concealed) |
+| `MCP` | `PAPERCLIP_API_URL` (optional, non-secret) |
+| `MCP` | `PAPERCLIP_COMPANY_ID` (optional, non-secret) |
 | item root | `CONTEXT7_API_KEY` |
 | item root | `GEMINI_API_KEY` |
 
@@ -112,6 +127,8 @@ Also define these non-secret paths in your shell environment when using the corr
 ```bash
 export FIGMA_IMAGE_DIR="$HOME/path/to/figma-assets"
 export MCP_IMAGE_OUTPUT_DIR="$HOME/path/to/generated-images"
+# Optional: only files below this real path may be uploaded for image editing.
+export MCP_IMAGE_INPUT_DIR="$HOME/path/to/reviewed-input-images"
 ```
 
 > `pi-mcp-adapter` gives leading-`!` secret commands 10 seconds to finish. Approve 1Password promptly when a fresh Pi or subagent process connects.
@@ -119,9 +136,13 @@ export MCP_IMAGE_OUTPUT_DIR="$HOME/path/to/generated-images"
 ## MCP authentication
 
 - **Tavily and Linear:** browser OAuth; Pi starts the flow when first used.
-- **Exa, Context7, Figma, image generation, and Zikra:** secret-manager references in `mcp.json`.
+- **Exa, Context7, and Zikra MCP:** reviewed secret-manager markers in `mcp.json`, rewritten through the trusted absolute `runtime/op-read.sh` resolver.
+- **Native Zikra, Figma, and image generation:** fixed launchers resolve their exact 1Password references only after entering a minimal environment; the credentials are not supplied in MCP `env`.
 - **codebase-memory-mcp:** local executable on `PATH`; no API key required.
 - **Zikra:** use a dedicated developer token, not the owner token.
+- **Paperclip:** the fixed runtime launcher resolves a dedicated, expiring board API key plus trusted endpoint/company fields directly from 1Password; none are placed in MCP `env`. Do not reuse a browser session or agent run JWT.
+
+This package deliberately loads `pi-mcp-adapter` with a supplied global configuration snapshot. The adapter ignores project `.mcp.json`, project `.pi/mcp.json`, host imports, Agent Plugin paths, and project-relative OAuth imports. It rewrites exact reviewed `!op read 'op://…'` markers through `runtime/op-read.sh`, pins credential-bearing launchers to absolute `/bin/sh` and agent-runtime paths, materializes the fixed hostname marker without a shell, and rejects other leading-`!` command resolvers. Hash-verified local hardening neutralizes terminal controls in MCP TUI rendering and prevents the output guard from retaining full payloads in temp files. This prevents an untrusted repository from overriding a credential-bearing global server, substituting executables through `PATH`, widening the tool surface, or persisting oversized responses. The tradeoff is that project-specific MCP discovery and `/mcp enable|disable` project overrides are unavailable; edit the reviewed global `~/.pi/agent/mcp.json` and run `/reload` instead.
 
 Check status after reload:
 
@@ -129,7 +150,25 @@ Check status after reload:
 /mcp
 ```
 
-A read-only agent integration check should be able to call Zikra, codebase-memory, Context7, Exa, and Tavily without exposing credentials.
+A read-only agent integration check should be able to call Zikra, codebase-memory, Context7, Exa, Tavily, and any configured Paperclip server without exposing credentials.
+
+The image MCP wrapper disables local input-image editing unless `MCP_IMAGE_INPUT_DIR` is explicitly set. When enabled, it resolves real paths and rejects parent, sibling-prefix, and symlink escapes before the upstream package can read or upload a file. Generated outputs remain confined by the separately configured output directory.
+
+## Optional Paperclip integration
+
+The sanitized MCP template includes the official `@paperclipai/mcp-server@2026.722.0` behind `pi-mcp-adapter`. The installer resolves it with the dedicated `runtime/paperclip-mcp/package-lock.json`, lifecycle scripts disabled, and launches that local artifact without `npx` or runtime registry resolution. The launcher enters a minimal environment before obtaining its credential, endpoint, and company identity from fixed 1Password references, then directly execs recorded binaries without putting secrets in process arguments. The local server wrapper enforces the configured company on company-scoped and object-ID requests and independently exposes only 38 reviewed tools; actor-wide `paperclipMe`/`paperclipInboxLite` and generic `paperclipApiRequest` are omitted. The adapter approval-gates all 17 named mutations and disables MCP resources.
+
+To enable Pi → Paperclip access:
+
+1. Create a dedicated board API key with an expiration in the Paperclip UI or another reviewed administrative flow.
+2. Store it as the concealed `PAPERCLIP_PI_BOARD_TOKEN` field referenced above. Store the trusted HTTPS endpoint and company UUID as `PAPERCLIP_API_URL` and `PAPERCLIP_COMPANY_ID` in the same section. `runtime/paperclip-mcp/launch.sh` resolves those fixed references only when the server starts. Never paste the key into `mcp.json`, shell history, logs, or issues.
+3. Ensure the intended 1Password account is active before launching Pi. The hardened launcher deliberately ignores inherited `OP_ACCOUNT`; users with a different item layout, multiple-account requirement, or another secret manager must review and replace the launcher rather than injecting overrides from a project.
+4. Run `/reload`, connect the `paperclip` MCP server, and verify a read tool before approving any mutation.
+5. Record the expiry and rotate or revoke the key on schedule.
+
+A board key inherits the issuing user's Paperclip memberships and is therefore powerful. The local wrapper fails closed when an object cannot prove membership in the configured company, but server-side single-company credentials remain preferable when Paperclip supports them. Keep the explicit allowlist, review each write approval, and leave actor-wide and generic escape tools excluded. The full `paperclipai` CLI is deliberately not a dependency of this repository; audit its broader dependency graph separately if you use it for key administration.
+
+For Paperclip → Pi execution, configure Paperclip's built-in `pi_local` adapter on the Paperclip runtime host. That host—not this workstation—must have a reviewed Pi installation, provider authentication, workspace permissions, and a tested model. Paperclip and Pi versions evolve independently; verify the adapter's resolved Pi command/version and start with one pilot agent before broad rollout.
 
 ## Local Zikra
 
@@ -164,6 +203,19 @@ The local HTTP integration trusts ownership of the loopback port. Another proces
 6. Save only verified, durable decisions and requirements to Zikra—never raw transcripts or graph dumps.
 
 See [`global/AGENTS.md`](global/AGENTS.md) for the complete policy.
+
+## Utility commands
+
+The filtered utility set enables only these reviewed commands:
+
+- `/sessions` — select a project session with a preview
+- `/handoff` — transfer focused context into a new session
+- `/context-simple` — inspect loaded context and usage
+- `/session-breakdown` — summarize local session activity and cost
+- `/btw` — ask an ephemeral side question without persisting it to the session
+- `/notify` — send a sanitized terminal notification test
+
+The local notification fork strips terminal control sequences and does not emit OSC bytes when stdout is not a TTY, preserving headless and JSON-mode output. The local `/sessions` and `/btw` forks also neutralize controls in session and model text. The `/handoff` fork ignores project-local model overrides until Pi marks the project trusted. Session utilities read local Pi session metadata; treat those files as private and do not publish their output unintentionally.
 
 ## Development
 

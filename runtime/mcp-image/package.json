@@ -1,0 +1,11 @@
+{
+  "name": "@slantview/pi-agents-mcp-image-runtime",
+  "version": "0.1.2",
+  "private": true,
+  "description": "Lockfile-controlled image MCP runtime for @slantview/pi-agents",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "mcp-image": "0.12.1"
+  }
+}

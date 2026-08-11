@@ -1,6 +1,16 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
+export function trustedOpReadInvocation(agentDir: string, reference: string): { command: string; args: string[] } {
+  if (!reference.startsWith("op://") || /[\r\n]/u.test(reference)) {
+    throw new Error("Zikra token must use a valid 1Password reference");
+  }
+  return {
+    command: "/bin/sh",
+    args: [path.join(agentDir, "runtime", "op-read.sh"), reference],
+  };
+}
+
 export interface SessionTotals {
   input: number;
   output: number;
