@@ -6,6 +6,11 @@ import test from "node:test";
 
 import { loadIsolatedMcpConfig } from "./config.ts";
 
+test("forces MCP direct tools off so authorization stays on the governed gateway", () => {
+  const source = fs.readFileSync(path.join(import.meta.dirname, "index.ts"), "utf8");
+  assert.match(source, /process\.env\.MCP_DIRECT_TOOLS\s*=\s*"__none__"/u);
+});
+
 test("loads only the user-global MCP snapshot and drops ambient imports", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-isolated-"));
   const agentDir = path.join(root, "agent");

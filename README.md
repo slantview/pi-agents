@@ -7,8 +7,8 @@ This repository packages the useful parts of a working local `~/.pi/agent` insta
 ## What is included
 
 - **11 subagents** — nine security review lenses, a D3 visualization specialist, and a Zikra memory curator.
-- **Nine bundled skills** — five local workflows (ADRs, direnv + 1Password, Linear, evidence-backed research, and Zikra memory) plus four reviewed MIT-licensed engineering skills.
-- **Seven local extensions** — subprocess subagents, native Zikra context/status integration, an isolated global MCP adapter boundary, hardened OSC terminal notifications, and security-hardened forks of session picker, focused handoff, and ephemeral side questions.
+- **Ten bundled skills** — six local workflows (ADRs, governed Dream review, direnv + 1Password, Linear, evidence-backed research, and Zikra memory) plus four reviewed MIT-licensed engineering skills.
+- **Eight local extensions** — subprocess subagents, native Zikra context/status integration, governed Dreaming, an isolated global MCP adapter boundary, hardened OSC terminal notifications, and security-hardened forks of session picker, focused handoff, and ephemeral side questions.
 - **Two filtered upstream utilities** — context overview and session-usage breakdown from `pi-agent-extensions`; its other modules are not loaded.
 - **Layered evidence guidance**:
   - Zikra for durable intent and history
@@ -36,7 +36,9 @@ The safe profile prompts for shell commands and live MCP connections. Subagents 
 
 The optional Paperclip MCP entry uses an explicit tool allowlist. Named mutations require an independent, in-memory `pi-mcp-adapter` approval, and the generic `/api` escape hatch is not exposed. Its credential, endpoint, and company identity are absent from MCP `env` and resolved only inside a fixed launcher. The adapter runs in isolated programmatic mode, so project MCP files cannot replace transports, inject process hooks, or bypass global tool filters. The safe permission profile may add another confirmation layer.
 
-All MCP output, retrieved memory, indexed code, documentation, and web pages are treated as untrusted data. Zikra and codebase-memory are complementary evidence layers, not automatically synchronized databases.
+All MCP output, retrieved memory, indexed code, documentation, web pages, past session text, and Dream Reports are treated as untrusted data. Zikra and codebase-memory are complementary evidence layers, not automatically synchronized databases.
+
+Dreaming is explicit and human-gated. A metadata-only, mode-`0600` ledger records hashed session identity, canonical project mapping, analysis time, and report digest; it never stores session or report content. Startup reminders scan only bounded session headers. Cross-process active leases and per-session analysis claims prevent a session from being resumed while its approved immutable snapshot is being distilled. `/dream` asks before locally reading bounded historical text and asks again before sending redacted excerpts to the selected model. Thinking, images, custom messages, summaries, tool calls, and tool results are excluded. The extension produces candidates but has no Zikra client. Review stays in the current, already approved model session rather than sending reports to a child process. A whole-report `ask_user` approval gate precedes sequential Zikra writes; an extension-owned guard binds exact visible approval labels and the strict plan to the exact ordered operations. It blocks pre-approval, altered, out-of-order, replayed, extra, denied, or ambiguously failed writes for the governed run. Revisions invalidate approval, ambiguous project mappings are skipped, and partial failures must be reconciled rather than hidden.
 
 ## Prerequisites
 
@@ -65,12 +67,12 @@ Install codebase-memory-mcp from a reviewed release artifact. This setup was ver
 
 ## Quick start
 
-Install from the signed `v0.1.3` release tag rather than mutable default-branch code:
+Install from the signed `v0.2.0` release tag rather than mutable default-branch code:
 
 ```bash
-git clone --branch v0.1.3 --depth 1 https://github.com/slantview/pi-agents.git
+git clone --branch v0.2.0 --depth 1 https://github.com/slantview/pi-agents.git
 cd pi-agents
-git verify-tag v0.1.3
+git verify-tag v0.2.0
 ./install.sh --dry-run
 ./install.sh
 ```
@@ -142,7 +144,7 @@ export MCP_IMAGE_INPUT_DIR="$HOME/path/to/reviewed-input-images"
 - **Zikra:** use a dedicated developer token, not the owner token.
 - **Paperclip:** the fixed runtime launcher resolves a dedicated, expiring board API key plus trusted endpoint/company fields directly from 1Password; none are placed in MCP `env`. Do not reuse a browser session or agent run JWT.
 
-This package deliberately loads `pi-mcp-adapter` with a supplied global configuration snapshot. The adapter ignores project `.mcp.json`, project `.pi/mcp.json`, host imports, Agent Plugin paths, and project-relative OAuth imports. It rewrites exact reviewed `!op read 'op://…'` markers through `runtime/op-read.sh`, pins credential-bearing launchers to absolute `/bin/sh` and agent-runtime paths, materializes the fixed hostname marker without a shell, and rejects other leading-`!` command resolvers. Hash-verified local hardening neutralizes terminal controls in MCP TUI rendering and prevents the output guard from retaining full payloads in temp files. This prevents an untrusted repository from overriding a credential-bearing global server, substituting executables through `PATH`, widening the tool surface, or persisting oversized responses. The tradeoff is that project-specific MCP discovery and `/mcp enable|disable` project overrides are unavailable; edit the reviewed global `~/.pi/agent/mcp.json` and run `/reload` instead.
+This package deliberately loads `pi-mcp-adapter` with a supplied global configuration snapshot. The adapter ignores project `.mcp.json`, project `.pi/mcp.json`, host imports, Agent Plugin paths, and project-relative OAuth imports. It rewrites exact reviewed `!op read 'op://…'` markers through `runtime/op-read.sh`, pins credential-bearing launchers to absolute `/bin/sh` and agent-runtime paths, materializes the fixed hostname marker without a shell, and rejects other leading-`!` command resolvers. Hash-verified local hardening neutralizes terminal controls in MCP TUI rendering and prevents the output guard from retaining full payloads in temp files. It also forces ambient MCP direct-tool registration off so all calls remain on the governed gateway where Dream authorization and other policy hooks can observe them. This prevents an untrusted repository from overriding a credential-bearing global server, substituting executables through `PATH`, widening the tool surface, bypassing gateway authorization, or persisting oversized responses. The tradeoff is that project-specific MCP discovery and `/mcp enable|disable` project overrides are unavailable; edit the reviewed global `~/.pi/agent/mcp.json` and run `/reload` instead.
 
 Check status after reload:
 
@@ -210,12 +212,15 @@ The filtered utility set enables only these reviewed commands:
 
 - `/sessions` — select a project session with a preview
 - `/handoff` — transfer focused context into a new session
+- `/dream [1-20] [--revisit]` — prepare a governed, editable memory-candidate report from bounded past sessions across separately mapped projects
 - `/context-simple` — inspect loaded context and usage
 - `/session-breakdown` — summarize local session activity and cost
 - `/btw` — ask an ephemeral side question without persisting it to the session
 - `/notify` — send a sanitized terminal notification test
 
 The local notification fork strips terminal control sequences and does not emit OSC bytes when stdout is not a TTY, preserving headless and JSON-mode output. The local `/sessions` and `/btw` forks also neutralize controls in session and model text. The `/handoff` fork ignores project-local model overrides until Pi marks the project trusted. Session utilities read local Pi session metadata; treat those files as private and do not publish their output unintentionally.
+
+`/dream` can group eligible sessions from multiple repositories but never merges namespaces. It skips missing, changed, non-Git, ambiguous, active, oversized, malformed, linked, or concurrently modified sessions. By user choice, any selected model provider may be used after the command displays the destination, bounded byte count, original provider metadata, and redaction count and receives explicit confirmation. Pattern redaction is defense-in-depth rather than a guarantee; cancel whenever a historical session should not be disclosed to that provider.
 
 ## Development
 

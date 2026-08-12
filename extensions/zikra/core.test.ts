@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildRunLogBody,
+  canonicalRemoteIdentity,
   deriveProjectName,
   normalizeProjectName,
   sessionUsage,
@@ -24,6 +25,12 @@ test("normalizeProjectName produces stable lowercase namespaces", () => {
   assert.equal(normalizeProjectName("Kingpin Security / API"), "kingpin-security-api");
   assert.equal(normalizeProjectName("---"), "main");
   assert.equal(normalizeProjectName("A__B...C"), "a-b-c");
+});
+
+test("canonicalRemoteIdentity normalizes reviewed Git remote forms", () => {
+  assert.equal(canonicalRemoteIdentity("git@github.com:a3tai/akp.git"), "github.com/a3tai/akp");
+  assert.equal(canonicalRemoteIdentity("https://github.com/a3tai/akp.git"), "github.com/a3tai/akp");
+  assert.equal(canonicalRemoteIdentity("not a remote"), "");
 });
 
 test("deriveProjectName uses readable canonical identity plus a stable digest", () => {

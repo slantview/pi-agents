@@ -86,6 +86,17 @@ test("MCP servers use isolated lockfile-controlled launchers", () => {
   assert.ok(!paperclip.includeTools.includes("paperclipApiRequest"));
   assert.doesNotMatch(JSON.stringify(paperclip), /https?:\/\/[^/\s]+\.ts\.net/i);
 
+  assert.deepEqual([...config.mcpServers.zikra.approveTools].sort(), [
+    "zikra_create_token",
+    "zikra_delete_memory",
+    "zikra_log_error",
+    "zikra_log_run",
+    "zikra_promote_requirement",
+    "zikra_save_memory",
+    "zikra_save_prompt",
+    "zikra_save_requirement",
+  ].sort());
+
   assert.equal(config.mcpServers.figma.env.FIGMA_API_KEY, undefined);
   assert.equal(config.mcpServers["mcp-image"].env.GEMINI_API_KEY, undefined);
   assert.equal(config.mcpServers["mcp-image"].env.IMAGE_INPUT_DIR, "${MCP_IMAGE_INPUT_DIR}");

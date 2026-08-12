@@ -1,0 +1,22 @@
+{
+  "defaultSessionLimit": 12,
+  "maximumSessionLimit": 20,
+  "maximumProjects": 6,
+  "maximumSessionsPerProject": 4,
+  "minimumSessionAgeMinutes": 10,
+  "maximumHeaderFiles": 1000,
+  "maximumHeaderBytes": 4096,
+  "maximumSessionFileBytes": 8388608,
+  "maximumSessionLineBytes": 524288,
+  "maximumSessionEntries": 10000,
+  "maximumMessagesPerSession": 40,
+  "maximumCharsPerMessage": 2000,
+  "maximumCharsPerSession": 12000,
+  "maximumAggregateInputBytes": 80000,
+  "maximumInsightsPerProject": 6,
+  "maximumModelResponseBytes": 32768,
+  "modelTimeoutMs": 90000,
+  "reminderEligibleSessions": 3,
+  "reminderCooldownHours": 168,
+  "ledgerMaximumEntries": 500
+}

@@ -10,7 +10,7 @@ for runtime in paperclip-mcp figma-mcp mcp-image; do
   npm ci --ignore-scripts --omit=dev --prefix "runtime/$runtime"
 done
 bash tests/install_test.sh
-node --test tests/*.test.mjs extensions/btw/*.test.ts extensions/handoff/*.test.ts extensions/mcp-isolated/*.test.ts extensions/notify/*.test.ts extensions/sessions/*.test.ts extensions/shared/*.test.ts extensions/subagent/*.test.ts extensions/zikra/*.test.ts
+node --test tests/*.test.mjs extensions/btw/*.test.ts extensions/dream/*.test.ts extensions/handoff/*.test.ts extensions/mcp-isolated/*.test.ts extensions/notify/*.test.ts extensions/sessions/*.test.ts extensions/shared/*.test.ts extensions/subagent/*.test.ts extensions/zikra/*.test.ts
 shellcheck install.sh tests/install_test.sh scripts/check.sh runtime/op-read.sh runtime/*/launch.sh
 npm audit
 for runtime in paperclip-mcp figma-mcp mcp-image; do

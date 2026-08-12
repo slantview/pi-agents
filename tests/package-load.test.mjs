@@ -21,11 +21,11 @@ test("Pi loads every packaged extension and skill without diagnostics", async ()
 
     const extensionResult = loader.getExtensions();
     assert.deepEqual(extensionResult.errors, []);
-    assert.equal(extensionResult.extensions.length, 13);
+    assert.equal(extensionResult.extensions.length, 14);
 
     const skillResult = loader.getSkills();
     assert.deepEqual(skillResult.diagnostics.filter((entry) => entry.type === "error"), []);
-    assert.equal(skillResult.skills.length, 10);
+    assert.equal(skillResult.skills.length, 11);
   } finally {
     if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;

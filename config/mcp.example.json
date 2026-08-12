@@ -67,7 +67,17 @@
         "X-Zikra-Runner": "!hostname -s"
       },
       "lifecycle": "lazy-keep-alive",
-      "requestTimeoutMs": 10000
+      "requestTimeoutMs": 10000,
+      "approveTools": [
+        "zikra_create_token",
+        "zikra_delete_memory",
+        "zikra_log_error",
+        "zikra_log_run",
+        "zikra_promote_requirement",
+        "zikra_save_memory",
+        "zikra_save_prompt",
+        "zikra_save_requirement"
+      ]
     },
     "paperclip": {
       "command": "/bin/sh",

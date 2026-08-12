@@ -24,6 +24,9 @@ export default function isolatedMcpAdapter(pi: ExtensionAPI): void {
   ]) {
     delete process.env[name];
   }
+  // The governed MCP gateway is the sole MCP tool surface. Ambient direct-tool
+  // registration would bypass gateway-level authorization guards.
+  process.env.MCP_DIRECT_TOOLS = "__none__";
 
   const extension = createMcpAdapter({
     config: loadIsolatedMcpConfig(getAgentDir()),

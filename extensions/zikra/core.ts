@@ -30,7 +30,7 @@ export function normalizeProjectName(value: string, fallback = "main"): string {
   return normalized || fallback;
 }
 
-function canonicalRemoteIdentity(remote: string): string {
+export function canonicalRemoteIdentity(remote: string): string {
   const trimmed = remote.trim().replace(/[\\/]$/, "");
   if (!trimmed) return "";
   const scpMatch = trimmed.match(/^[^@/]+@([^:]+):(.+)$/);

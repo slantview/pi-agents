@@ -26,7 +26,7 @@ for (const file of agents) {
 }
 
 const skills = files.filter((name) => name.endsWith(`${path.sep}SKILL.md`));
-if (skills.length !== 9) throw new Error(`expected 9 bundled skills, found ${skills.length}`);
+if (skills.length !== 10) throw new Error(`expected 10 bundled skills, found ${skills.length}`);
 for (const file of skills) {
   const text = fs.readFileSync(file, "utf8");
   if (!text.startsWith("---\n") || !/^name:\s*[a-z0-9-]+$/m.test(text) || !/^description:\s*.+$/m.test(text)) {
@@ -98,6 +98,20 @@ if (!paperclip || paperclip.env !== undefined) {
 if (paperclip.exposeResources !== false || paperclip.includeTools?.length !== 38 || paperclip.approveTools?.length !== 17 || paperclip.includeTools.some((name) => ["paperclipMe", "paperclipInboxLite", "paperclipApiRequest"].includes(name))) {
   throw new Error("Paperclip MCP company-bound tool surface must remain explicitly allowlisted and approval-gated");
 }
+const requiredZikraApprovals = [
+  "zikra_create_token",
+  "zikra_delete_memory",
+  "zikra_log_error",
+  "zikra_log_run",
+  "zikra_promote_requirement",
+  "zikra_save_memory",
+  "zikra_save_prompt",
+  "zikra_save_requirement",
+];
+if (JSON.stringify([...(mcp.mcpServers.zikra?.approveTools ?? [])].sort()) !== JSON.stringify(requiredZikraApprovals.sort())) {
+  throw new Error("Zikra mutations must remain independently approval-gated");
+}
+
 const runtimeSpecs = [
   { server: "paperclip", runtime: "paperclip-mcp", packageName: "@paperclipai/mcp-server", version: "2026.722.0" },
   { server: "figma", runtime: "figma-mcp", packageName: "figma-developer-mcp", version: "0.13.2" },
@@ -162,6 +176,13 @@ const adapterHardening = [
 for (const [file, marker] of adapterHardening) {
   const source = fs.readFileSync(path.join(root, "node_modules/pi-mcp-adapter", file), "utf8");
   if (!source.includes(marker)) throw new Error(`Missing reviewed pi-mcp-adapter hardening: ${file}`);
+}
+if (!manifest.pi?.extensions?.includes("./extensions/dream/index.ts")) {
+  throw new Error("the governed Dreaming extension must be package-loaded");
+}
+const isolatedMcpSource = fs.readFileSync(path.join(root, "extensions/mcp-isolated/index.ts"), "utf8");
+if (!isolatedMcpSource.includes('process.env.MCP_DIRECT_TOOLS = "__none__"')) {
+  throw new Error("isolated MCP must force direct tools off so gateway authorization cannot be bypassed");
 }
 if (manifest.dependencies?.["@jmcombs/pi-notify"] || !manifest.pi?.extensions?.includes("./extensions/notify/index.ts")) {
   throw new Error("the hardened local notification fork must replace the upstream notification entry point");

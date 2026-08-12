@@ -14,6 +14,6 @@ const allowed = new Set(PAPERCLIP_ALLOWED_TOOLS);
 const tools = allTools.filter((tool) => allowed.has(tool.name));
 if (tools.length !== allowed.size) throw new Error("Paperclip MCP allowlist does not match the pinned server tool surface");
 
-const server = new McpServer({ name: "paperclip-guarded", version: "0.1.3" });
+const server = new McpServer({ name: "paperclip-guarded", version: "0.2.0" });
 for (const tool of tools) server.tool(tool.name, tool.description, tool.schema.shape, tool.execute);
 await server.connect(new StdioServerTransport());
