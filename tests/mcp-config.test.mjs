@@ -75,7 +75,8 @@ test("MCP servers use isolated lockfile-controlled launchers", () => {
   assert.match(runtimeLock.packages["node_modules/@paperclipai/mcp-server"].integrity, /^sha512-/);
   const launcher = fs.readFileSync(path.join(root, "runtime/paperclip-mcp/launch.sh"), "utf8");
   assert.match(launcher, /op:\/\/Shared\/LocalEnvironment\/MCP\/PAPERCLIP_PI_BOARD_TOKEN/);
-  assert.match(launcher, /"\$op_bin" read /);
+  assert.match(launcher, /"\$op_bin" "\$@"/);
+  assert.match(launcher, /op-account/);
   assert.match(launcher, /\/usr\/bin\/env -i/);
   assert.doesNotMatch(launcher, /echo .*PAPERCLIP_API_KEY|set -x/);
   assert.equal(paperclip.env, undefined);

@@ -30,7 +30,19 @@ if [ ! -x "$op_bin" ] || [ ! -d "$trusted_home" ]; then
   exit 1
 fi
 
+if [ -e "$runtime_dir/op-account" ]; then
+  if [ ! -f "$runtime_dir/op-account" ] || [ -L "$runtime_dir/op-account" ] || [ ! -r "$runtime_dir/op-account" ]; then
+    echo "Trusted 1Password account selection is invalid; rerun the installer." >&2
+    exit 1
+  fi
+  IFS= read -r op_account < "$runtime_dir/op-account"
+  case "$op_account" in ""|*[!A-Za-z0-9-]*) echo "Trusted 1Password account selection is invalid." >&2; exit 1 ;; esac
+  set -- read --account "$op_account" "$reference"
+else
+  set -- read "$reference"
+fi
+
 exec /usr/bin/env -i \
   HOME="$trusted_home" \
   PATH='/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin' \
-  "$op_bin" read "$reference"
+  "$op_bin" "$@"

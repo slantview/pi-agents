@@ -77,6 +77,15 @@ for command_name in npm pi op; do
   printf '#!/bin/sh\nexit 0\n' > "$HOME/bin/$command_name"
   chmod 755 "$HOME/bin/$command_name"
 done
+cat > "$HOME/bin/op" <<'EOF'
+#!/bin/sh
+if [ "$1 $2 $3" = "account list --format=json" ]; then
+  printf '%s\n' '[{"account_uuid":"other-id","url":"https://example.1password.com"},{"account_uuid":"target-id","url":"https://work.1password.com"}]'
+  exit 0
+fi
+exit 1
+EOF
+chmod 755 "$HOME/bin/op"
 for command_name in bash dirname; do
   printf '#!/bin/sh\nprintf exploited > "%s"\nexit 99\n' "$HOME/ambient-path-executed" > "$HOME/bin/$command_name"
   chmod 755 "$HOME/bin/$command_name"
@@ -84,7 +93,7 @@ done
 printf 'require("node:fs").writeFileSync("%s", "exploited")\n' "$HOME/node-startup-executed" > "$HOME/node-hook.cjs"
 printf 'printf exploited > %q\n' "$HOME/bash-startup-executed" > "$HOME/bash-env.sh"
 export PI_CODING_AGENT_DIR="$HOME/explicit-bin-agent"
-BASH_ENV="$HOME/bash-env.sh" \
+printf 'work\n' | BASH_ENV="$HOME/bash-env.sh" \
 NODE_OPTIONS="--require=$HOME/node-hook.cjs" \
 PATH="$HOME/bin:/usr/bin:/bin" "$ROOT/install.sh" \
   --trusted-home "$HOME" \
@@ -97,6 +106,13 @@ PATH="$HOME/bin:/usr/bin:/bin" "$ROOT/install.sh" \
 [[ ! -e "$HOME/node-startup-executed" ]] || fail "installer executed inherited NODE_OPTIONS"
 assert_contains "$PI_CODING_AGENT_DIR/runtime/node-path" "$REAL_NODE"
 assert_contains "$PI_CODING_AGENT_DIR/runtime/op-path" "$HOME/bin/op"
+assert_contains "$PI_CODING_AGENT_DIR/runtime/op-account" "target-id"
+case "$(uname -s)" in
+  Darwin) account_mode=$(stat -f '%Lp' "$PI_CODING_AGENT_DIR/runtime/op-account") ;;
+  Linux) account_mode=$(stat -c '%a' "$PI_CODING_AGENT_DIR/runtime/op-account") ;;
+  *) fail "unsupported platform for permission assertion" ;;
+esac
+[[ "$account_mode" = "600" ]] || fail "1Password account selection must be private"
 
 # Dry-run leaves a clean target untouched.
 export PI_CODING_AGENT_DIR="$HOME/dry-run-agent"

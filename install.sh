@@ -69,6 +69,8 @@ NPM_BIN=""
 PI_BIN=""
 OP_BIN=""
 TRUSTED_HOME=""
+OP_ACCOUNT_FILE=""
+SELECTED_OP_ACCOUNT=""
 
 resolve_account_home() {
   if [[ -n "$TRUSTED_HOME_OVERRIDE" ]]; then
@@ -157,6 +159,7 @@ else
   TRUSTED_HOME="${TRUSTED_HOME_OVERRIDE:-$HOME}"
   [[ -n "$AGENT_DIR" ]] || AGENT_DIR="$HOME/.pi/agent"
 fi
+OP_ACCOUNT_FILE="$AGENT_DIR/runtime/op-account"
 
 managed_files() {
   printf '%s|%s\n' "$ROOT/global/AGENTS.md" "$AGENT_DIR/AGENTS.md"
@@ -198,9 +201,48 @@ fi
 
 if [[ "$DRY_RUN" == true ]]; then
   while IFS='|' read -r _source target; do echo "Would install: $target"; done < <(managed_files)
-  if [[ "$SKIP_PACKAGES" != true ]]; then echo "Would install locked dependencies, isolated MCP runtimes, and this local package."; fi
+  if [[ "$SKIP_PACKAGES" != true ]]; then
+    echo "Would install locked dependencies, isolated MCP runtimes, and this local package."
+    [[ -s "$OP_ACCOUNT_FILE" ]] || echo "Would configure a private local 1Password account selection when multiple accounts are available."
+  fi
   exit 0
 fi
+
+prepare_op_account() {
+  if [[ -e "$OP_ACCOUNT_FILE" || -L "$OP_ACCOUNT_FILE" ]]; then
+    if [[ ! -f "$OP_ACCOUNT_FILE" || -L "$OP_ACCOUNT_FILE" || ! -s "$OP_ACCOUNT_FILE" ]]; then
+      echo "Existing 1Password account selection is invalid: $OP_ACCOUNT_FILE" >&2
+      exit 5
+    fi
+    return
+  fi
+
+  local account_count hint
+  if ! account_count="$(
+    /usr/bin/env -i HOME="$TRUSTED_HOME" PATH="$PATH" "$OP_BIN" account list --format=json 2>/dev/null |
+      /usr/bin/env -i HOME="$TRUSTED_HOME" PATH="$PATH" "$NODE_BIN" -e \
+        'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const a=JSON.parse(s);if(!Array.isArray(a))process.exit(2);process.stdout.write(String(a.length))})'
+  )"; then
+    echo "Unable to inspect configured 1Password accounts." >&2
+    exit 5
+  fi
+  if [[ "$account_count" -le 1 ]]; then return; fi
+
+  printf 'Multiple 1Password accounts detected. Enter a unique account hint: ' >&2
+  if ! IFS= read -r hint; then
+    echo "Unable to configure 1Password account selection without a hint." >&2
+    exit 5
+  fi
+  if ! SELECTED_OP_ACCOUNT="$(
+    /usr/bin/env -i HOME="$TRUSTED_HOME" PATH="$PATH" "$OP_BIN" account list --format=json 2>/dev/null |
+      /usr/bin/env -i HOME="$TRUSTED_HOME" PATH="$PATH" "$NODE_BIN" "$ROOT/scripts/resolve-op-account.mjs" "$hint"
+  )"; then
+    echo "The account hint did not uniquely identify one 1Password account." >&2
+    exit 5
+  fi
+}
+
+if [[ "$SKIP_PACKAGES" != true ]]; then prepare_op_account; fi
 
 backup_root=""
 while IFS='|' read -r source target; do
@@ -227,7 +269,13 @@ if [[ "$SKIP_PACKAGES" != true ]]; then
   printf '%s\n' "$NODE_BIN" > "$AGENT_DIR/runtime/node-path"
   printf '%s\n' "$OP_BIN" > "$AGENT_DIR/runtime/op-path"
   printf '%s\n' "$TRUSTED_HOME" > "$AGENT_DIR/runtime/home-path"
+  if [[ -n "$SELECTED_OP_ACCOUNT" ]]; then
+    umask 077
+    printf '%s\n' "$SELECTED_OP_ACCOUNT" > "$OP_ACCOUNT_FILE.tmp.$$"
+    mv "$OP_ACCOUNT_FILE.tmp.$$" "$OP_ACCOUNT_FILE"
+  fi
   chmod 600 "$AGENT_DIR/runtime/node-path" "$AGENT_DIR/runtime/op-path" "$AGENT_DIR/runtime/home-path"
+  [[ ! -e "$OP_ACCOUNT_FILE" ]] || chmod 600 "$OP_ACCOUNT_FILE"
   for runtime in paperclip-mcp figma-mcp mcp-image; do
     /usr/bin/env -i HOME="$TRUSTED_HOME" PATH="$PATH" NPM_CONFIG_IGNORE_SCRIPTS=true "$NPM_BIN" ci --ignore-scripts --omit=dev --prefix "$AGENT_DIR/runtime/$runtime"
   done

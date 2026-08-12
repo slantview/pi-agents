@@ -26,12 +26,15 @@ test("trusted 1Password resolver ignores inherited executable and home overrides
 [ -z "\${BASH_ENV-}" ] || exit 11
 [ -z "\${NODE_OPTIONS-}" ] || exit 12
 [ "$1" = read ] || exit 13
-[ "$2" = 'op://Shared/Item/Field' ] || exit 14
+[ "$2" = --account ] || exit 14
+[ "$3" = 'trusted-account-id' ] || exit 15
+[ "$4" = 'op://Shared/Item/Field' ] || exit 16
 printf 'resolved-placeholder\\n'
 `, { mode: 0o755 });
   fs.writeFileSync(path.join(attackerBin, "op"), "#!/bin/sh\necho attacker-op-ran >&2\nexit 99\n", { mode: 0o755 });
   fs.writeFileSync(path.join(runtime, "op-path"), `${op}\n`);
   fs.writeFileSync(path.join(runtime, "home-path"), `${trustedHome}\n`);
+  fs.writeFileSync(path.join(runtime, "op-account"), "trusted-account-id\n", { mode: 0o600 });
 
   try {
     const result = spawnSync("sh", [resolver, "op://Shared/Item/Field"], {
@@ -42,6 +45,7 @@ printf 'resolved-placeholder\\n'
         PATH: `${attackerBin}:/usr/bin:/bin`,
         BASH_ENV: "/attacker/shell-hook",
         NODE_OPTIONS: "--require=/attacker/node-hook.js",
+        OP_ACCOUNT: "attacker-account-id",
       },
     });
     assert.equal(result.status, 0, result.stderr);
