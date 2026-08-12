@@ -13,6 +13,9 @@ export interface AgentConfig {
 	description: string;
 	tools?: string[];
 	model?: string;
+	executionProfile?: "lean-review";
+	includeGitDiff?: boolean;
+	timeoutMs?: number;
 	systemPrompt: string;
 	source: "user" | "project";
 	filePath: string;
@@ -21,6 +24,51 @@ export interface AgentConfig {
 export interface AgentDiscoveryResult {
 	agents: AgentConfig[];
 	projectAgentsDir: string | null;
+}
+
+export function parseAgentDefinition(
+	filePath: string,
+	source: "user" | "project",
+	content: string,
+): AgentConfig | undefined {
+	const { frontmatter, body } = parseFrontmatter<Record<string, unknown>>(content);
+	if (typeof frontmatter.name !== "string" || typeof frontmatter.description !== "string") return undefined;
+
+	const tools = typeof frontmatter.tools === "string"
+		? frontmatter.tools.split(",").map((tool) => tool.trim()).filter(Boolean)
+		: undefined;
+	let executionProfile: AgentConfig["executionProfile"];
+	if (frontmatter.execution !== undefined) {
+		if (frontmatter.execution !== "lean-review") throw new Error(`Invalid execution profile in ${filePath}`);
+		executionProfile = frontmatter.execution;
+	}
+	let includeGitDiff: boolean | undefined;
+	if (frontmatter.includeGitDiff !== undefined) {
+		if (typeof frontmatter.includeGitDiff === "boolean") includeGitDiff = frontmatter.includeGitDiff;
+		else if (frontmatter.includeGitDiff === "true" || frontmatter.includeGitDiff === "false") {
+			includeGitDiff = frontmatter.includeGitDiff === "true";
+		} else throw new Error(`Invalid includeGitDiff in ${filePath}`);
+	}
+	let timeoutMs: number | undefined;
+	if (frontmatter.timeoutMs !== undefined) {
+		timeoutMs = Number(frontmatter.timeoutMs);
+		if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 900_000) {
+			throw new Error(`Invalid timeoutMs in ${filePath}`);
+		}
+	}
+
+	return {
+		name: frontmatter.name,
+		description: frontmatter.description,
+		tools: tools && tools.length > 0 ? tools : undefined,
+		model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
+		executionProfile,
+		includeGitDiff,
+		timeoutMs,
+		systemPrompt: body,
+		source,
+		filePath,
+	};
 }
 
 function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
@@ -49,26 +97,8 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 			continue;
 		}
 
-		const { frontmatter, body } = parseFrontmatter<Record<string, string>>(content);
-
-		if (!frontmatter.name || !frontmatter.description) {
-			continue;
-		}
-
-		const tools = frontmatter.tools
-			?.split(",")
-			.map((t: string) => t.trim())
-			.filter(Boolean);
-
-		agents.push({
-			name: frontmatter.name,
-			description: frontmatter.description,
-			tools: tools && tools.length > 0 ? tools : undefined,
-			model: frontmatter.model,
-			systemPrompt: body,
-			source,
-			filePath,
-		});
+		const agent = parseAgentDefinition(filePath, source, content);
+		if (agent) agents.push(agent);
 	}
 
 	return agents;

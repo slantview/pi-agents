@@ -21,7 +21,14 @@ for (const file of agents) {
     throw new Error(`invalid agent frontmatter: ${path.relative(root, file)}`);
   }
   const tools = text.match(/^tools:\s*(.+)$/m)?.[1]?.split(",").map((value) => value.trim()) ?? [];
-  if (!tools.includes("mcp")) throw new Error(`agent lacks MCP access: ${path.relative(root, file)}`);
+  const execution = text.match(/^execution:\s*(.+)$/m)?.[1]?.trim();
+  if (execution === "lean-review") {
+    if (tools.includes("mcp") || tools.some((tool) => !["read", "grep", "find", "ls"].includes(tool))) {
+      throw new Error(`lean review agent has a non-read-only tool: ${path.relative(root, file)}`);
+    }
+  } else if (!tools.includes("mcp")) {
+    throw new Error(`agent lacks MCP access: ${path.relative(root, file)}`);
+  }
   if (/\bkingpin\b/i.test(text)) throw new Error(`agent contains Kingpin-specific language: ${path.relative(root, file)}`);
 }
 
