@@ -157,6 +157,8 @@ Check status after reload:
 
 A read-only agent integration check should be able to call Zikra, codebase-memory, Context7, Exa, Tavily, and any configured Paperclip server without exposing credentials.
 
+The change-regression reviewer runs in a lean, read-only child profile: extensions (including MCP integrations), skills, templates, themes, and inherited context files are disabled. The parent supplies a mode-`0600`, bounded snapshot of the exact tracked diff plus regular untracked files as untrusted review context and deletes it after the child exits; oversized snapshots fail closed instead of silently omitting changes. Reviews have a three-minute deadline and report elapsed and first-response timing alongside token usage. This keeps the higher-recall review model while reducing startup context and change-discovery turns.
+
 The image MCP wrapper disables local input-image editing unless `MCP_IMAGE_INPUT_DIR` is explicitly set. When enabled, it resolves real paths and rejects parent, sibling-prefix, and symlink escapes before the upstream package can read or upload a file. Generated outputs remain confined by the separately configured output directory.
 
 ## Optional Paperclip integration

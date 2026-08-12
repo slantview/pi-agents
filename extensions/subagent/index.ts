@@ -16,6 +16,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { performance } from "node:perf_hooks";
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -30,6 +31,7 @@ import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
 import { normalizeToolArguments, sanitizeSubagentLine, sanitizeSubagentText } from "./display.ts";
+import { collectReviewDiff, formatElapsed, reviewTaskWithDiff, reviewerRuntimeArgs } from "./runtime.ts";
 import { assertProjectAgentAccess, resolveContainedCwd } from "./security.ts";
 
 const MAX_PARALLEL_TASKS = 8;
@@ -55,6 +57,7 @@ function formatUsageStats(
 		turns?: number;
 	},
 	model?: string,
+	timing?: TimingStats,
 ): string {
 	const parts: string[] = [];
 	if (usage.turns) parts.push(`${usage.turns} turn${usage.turns > 1 ? "s" : ""}`);
@@ -65,6 +68,10 @@ function formatUsageStats(
 	if (usage.cost) parts.push(`$${usage.cost.toFixed(4)}`);
 	if (usage.contextTokens && usage.contextTokens > 0) {
 		parts.push(`ctx:${formatTokens(usage.contextTokens)}`);
+	}
+	if (timing) {
+		parts.push(`elapsed:${formatElapsed(timing.wallMs)}`);
+		if (timing.firstAssistantMs !== undefined) parts.push(`first:${formatElapsed(timing.firstAssistantMs)}`);
 	}
 	if (model) parts.push(sanitizeSubagentLine(model));
 	return parts.join(" ");
@@ -149,6 +156,12 @@ interface UsageStats {
 	turns: number;
 }
 
+interface TimingStats {
+	wallMs: number;
+	firstEventMs?: number;
+	firstAssistantMs?: number;
+}
+
 interface SingleResult {
 	agent: string;
 	agentSource: "user" | "project" | "unknown";
@@ -157,6 +170,7 @@ interface SingleResult {
 	messages: Message[];
 	stderr: string;
 	usage: UsageStats;
+	timing: TimingStats;
 	model?: string;
 	stopReason?: string;
 	errorMessage?: string;
@@ -187,7 +201,7 @@ function getFinalDisplayOutput(messages: Message[]): string {
 }
 
 function isFailedResult(result: SingleResult): boolean {
-	return result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
+	return result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted" || result.stopReason === "timeout";
 }
 
 function getResultOutput(result: SingleResult): string {
@@ -294,17 +308,19 @@ async function runSingleAgent(
 			messages: [],
 			stderr: `Unknown agent: "${agentName}". Available agents: ${available}.`,
 			usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
+			timing: { wallMs: 0 },
 			step,
 		};
 	}
 
 	const args: string[] = ["--mode", "json", "-p", "--no-session"];
+	const processCwd = resolveContainedCwd(defaultCwd, cwd);
+	args.push(...reviewerRuntimeArgs(agent));
 	if (agent.model) args.push("--model", agent.model);
 	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
-	let tmpPromptDir: string | null = null;
-	let tmpPromptPath: string | null = null;
-
+	const tempArtifacts: Array<{ dir: string; filePath: string }> = [];
+	let childTask = task;
 	const currentResult: SingleResult = {
 		agent: agentName,
 		agentSource: agent.source,
@@ -313,6 +329,7 @@ async function runSingleAgent(
 		messages: [],
 		stderr: "",
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
+		timing: { wallMs: 0 },
 		model: agent.model,
 		step,
 	};
@@ -329,23 +346,57 @@ async function runSingleAgent(
 	try {
 		if (agent.systemPrompt.trim()) {
 			const tmp = await writePromptToTempFile(agent.name, agent.systemPrompt);
-			tmpPromptDir = tmp.dir;
-			tmpPromptPath = tmp.filePath;
-			args.push("--append-system-prompt", tmpPromptPath);
+			tempArtifacts.push(tmp);
+			args.push("--append-system-prompt", tmp.filePath);
+		}
+		if (agent.includeGitDiff) {
+			const reviewDiff = await collectReviewDiff(processCwd);
+			if (reviewDiff) {
+				const tmp = await writePromptToTempFile(`${agent.name}-diff`, reviewDiff);
+				tempArtifacts.push(tmp);
+				childTask = reviewTaskWithDiff(task, tmp.filePath);
+			}
 		}
 
-		args.push(`Task: ${task}`);
+		args.push(`Task: ${childTask}`);
+		const startedAt = performance.now();
 		let wasAborted = false;
+		let wasTimedOut = false;
 
 		const exitCode = await new Promise<number>((resolve) => {
 			const invocation = getPiInvocation(args);
-			const processCwd = resolveContainedCwd(defaultCwd, cwd);
 			const proc = spawn(invocation.command, invocation.args, {
 				cwd: processCwd,
 				shell: false,
 				stdio: ["ignore", "pipe", "pipe"],
 			});
 			let buffer = "";
+			let closed = false;
+			let settled = false;
+			let forceKillTimer: NodeJS.Timeout | undefined;
+			let timeoutTimer: NodeJS.Timeout | undefined;
+
+			const terminate = () => {
+				if (closed) return;
+				proc.kill("SIGTERM");
+				forceKillTimer ??= setTimeout(() => {
+					if (!closed) proc.kill("SIGKILL");
+				}, 5_000);
+			};
+			const abortHandler = () => {
+				wasAborted = true;
+				terminate();
+			};
+			const finish = (code: number) => {
+				if (settled) return;
+				settled = true;
+				closed = true;
+				if (forceKillTimer) clearTimeout(forceKillTimer);
+				if (timeoutTimer) clearTimeout(timeoutTimer);
+				if (signal) signal.removeEventListener("abort", abortHandler);
+				currentResult.timing.wallMs = performance.now() - startedAt;
+				resolve(code);
+			};
 
 			const processLine = (line: string) => {
 				if (!line.trim()) return;
@@ -355,6 +406,9 @@ async function runSingleAgent(
 				} catch {
 					return;
 				}
+				const elapsed = performance.now() - startedAt;
+				currentResult.timing.firstEventMs ??= elapsed;
+				if (event.message?.role === "assistant") currentResult.timing.firstAssistantMs ??= elapsed;
 
 				if (event.type === "message_end" && event.message) {
 					const msg = event.message as Message;
@@ -390,49 +444,45 @@ async function runSingleAgent(
 				buffer = lines.pop() || "";
 				for (const line of lines) processLine(line);
 			});
-
 			proc.stderr.on("data", (data) => {
 				currentResult.stderr += data.toString();
 			});
-
 			proc.on("close", (code) => {
 				if (buffer.trim()) processLine(buffer);
-				resolve(code ?? 0);
+				finish(code ?? (wasTimedOut ? 124 : 1));
 			});
+			proc.on("error", () => finish(1));
 
-			proc.on("error", () => {
-				resolve(1);
-			});
-
-			if (signal) {
-				const killProc = () => {
-					wasAborted = true;
-					proc.kill("SIGTERM");
-					setTimeout(() => {
-						if (!proc.killed) proc.kill("SIGKILL");
-					}, 5000);
-				};
-				if (signal.aborted) killProc();
-				else signal.addEventListener("abort", killProc, { once: true });
+			if (agent.timeoutMs) {
+				timeoutTimer = setTimeout(() => {
+					wasTimedOut = true;
+					terminate();
+				}, agent.timeoutMs);
 			}
+			if (signal?.aborted) abortHandler();
+			else signal?.addEventListener("abort", abortHandler, { once: true });
 		});
 
 		currentResult.exitCode = exitCode;
+		if (wasTimedOut) {
+			currentResult.stopReason = "timeout";
+			currentResult.errorMessage = `Subagent exceeded its ${formatElapsed(agent.timeoutMs ?? 0)} time limit`;
+		}
 		if (wasAborted) throw new Error("Subagent was aborted");
 		return currentResult;
 	} finally {
-		if (tmpPromptPath)
+		for (const artifact of tempArtifacts.reverse()) {
 			try {
-				fs.unlinkSync(tmpPromptPath);
+				fs.unlinkSync(artifact.filePath);
 			} catch {
 				/* ignore */
 			}
-		if (tmpPromptDir)
 			try {
-				fs.rmdirSync(tmpPromptDir);
+				fs.rmdirSync(artifact.dir);
 			} catch {
 				/* ignore */
 			}
+		}
 	}
 }
 
@@ -612,6 +662,7 @@ export default function (pi: ExtensionAPI) {
 						messages: [],
 						stderr: "",
 						usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
+						timing: { wallMs: 0 },
 					};
 				}
 
@@ -812,7 +863,7 @@ export default function (pi: ExtensionAPI) {
 							container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
 						}
 					}
-					const usageStr = formatUsageStats(r.usage, r.model);
+					const usageStr = formatUsageStats(r.usage, r.model, r.timing);
 					if (usageStr) {
 						container.addChild(new Spacer(1));
 						container.addChild(new Text(theme.fg("dim", usageStr), 0, 0));
@@ -828,7 +879,7 @@ export default function (pi: ExtensionAPI) {
 					text += `\n${renderDisplayItems(displayItems, COLLAPSED_ITEM_COUNT)}`;
 					if (displayItems.length > COLLAPSED_ITEM_COUNT) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
 				}
-				const usageStr = formatUsageStats(r.usage, r.model);
+				const usageStr = formatUsageStats(r.usage, r.model, r.timing);
 				if (usageStr) text += `\n${theme.fg("dim", usageStr)}`;
 				return new Text(text, 0, 0);
 			}
@@ -897,7 +948,7 @@ export default function (pi: ExtensionAPI) {
 							container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
 						}
 
-						const stepUsage = formatUsageStats(r.usage, r.model);
+						const stepUsage = formatUsageStats(r.usage, r.model, r.timing);
 						if (stepUsage) container.addChild(new Text(theme.fg("dim", stepUsage), 0, 0));
 					}
 
@@ -982,7 +1033,7 @@ export default function (pi: ExtensionAPI) {
 							container.addChild(new Markdown(finalOutput.trim(), 0, 0, mdTheme));
 						}
 
-						const taskUsage = formatUsageStats(r.usage, r.model);
+						const taskUsage = formatUsageStats(r.usage, r.model, r.timing);
 						if (taskUsage) container.addChild(new Text(theme.fg("dim", taskUsage), 0, 0));
 					}
 
