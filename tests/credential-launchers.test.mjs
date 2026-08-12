@@ -29,6 +29,9 @@ for (const runtimeName of ["figma-mcp", "mcp-image"]) {
     fs.writeFileSync(op, `#!/bin/sh
 [ -z "\${NODE_OPTIONS-}" ] || exit 10
 [ -z "\${HTTPS_PROXY-}" ] || exit 11
+[ "$1" = read ] || exit 12
+[ "$2" = --account ] || exit 13
+[ "$3" = trusted-account-id ] || exit 14
 printf '%s\\n' '${credential}'
 `, { mode: 0o755 });
     const credentialName = runtimeName === "figma-mcp" ? "FIGMA_API_KEY" : "GEMINI_API_KEY";
@@ -41,6 +44,7 @@ printf '${runtimeName}-ok\\n'
     fs.writeFileSync(path.join(runtime, "node-path"), `${node}\n`);
     fs.writeFileSync(path.join(runtime, "op-path"), `${op}\n`);
     fs.writeFileSync(path.join(runtime, "home-path"), `${trustedHome}\n`);
+    fs.writeFileSync(path.join(runtime, "op-account"), "trusted-account-id\n", { mode: 0o600 });
 
     try {
       const env = {
@@ -54,6 +58,7 @@ printf '${runtimeName}-ok\\n'
         HTTPS_PROXY: "http://attacker.invalid",
         FIGMA_API_KEY: "attacker-key",
         GEMINI_API_KEY: "attacker-key",
+        OP_ACCOUNT: "attacker-account-id",
         IMAGE_DIR: outputDir,
         IMAGE_OUTPUT_DIR: outputDir,
         IMAGE_INPUT_DIR: inputDir,

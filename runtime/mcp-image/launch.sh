@@ -16,10 +16,20 @@ read_trusted_path() {
   printf '%s\n' "$trusted_path"
 }
 
+read_trusted_account() {
+  account_file=$script_dir/../op-account
+  [ -e "$account_file" ] || return 0
+  if [ ! -f "$account_file" ] || [ -L "$account_file" ] || [ ! -r "$account_file" ]; then exit 1; fi
+  IFS= read -r account < "$account_file"
+  case "$account" in ""|*[!A-Za-z0-9-]*) exit 1 ;; esac
+  printf '%s\n' "$account"
+}
+
 if [ "$#" -eq 0 ]; then
   node_bin=$(read_trusted_path node-path)
   op_bin=$(read_trusted_path op-path)
   trusted_home=$(read_trusted_path home-path)
+  op_account=$(read_trusted_account)
   : "${IMAGE_OUTPUT_DIR:?Set MCP_IMAGE_OUTPUT_DIR before starting Pi}"
   case "$IMAGE_OUTPUT_DIR" in /*) ;; *) echo "MCP_IMAGE_OUTPUT_DIR must be absolute." >&2; exit 1 ;; esac
   if [ -n "${IMAGE_INPUT_DIR:-}" ]; then
@@ -35,19 +45,22 @@ if [ "$#" -eq 0 ]; then
     IMAGE_INPUT_DIR="${IMAGE_INPUT_DIR:-}" \
     IMAGE_OUTPUT_DIR="$IMAGE_OUTPUT_DIR" \
     IMAGE_QUALITY="${IMAGE_QUALITY:-balanced}" \
-    /bin/sh "$script_path" --pi-mcp-clean-stage "$node_bin" "$op_bin"
+    /bin/sh "$script_path" --pi-mcp-clean-stage "$node_bin" "$op_bin" "$op_account"
 fi
-if [ "$#" -ne 3 ] || [ "$1" != "--pi-mcp-clean-stage" ]; then
+if [ "$#" -ne 4 ] || [ "$1" != "--pi-mcp-clean-stage" ]; then
   echo "Image MCP rejected an invalid launcher stage." >&2
   exit 1
 fi
 node_bin=$2
 op_bin=$3
+op_account=$4
 if [ ! -x "$node_bin" ] || [ ! -x "$op_bin" ]; then
   echo "Image MCP clean-stage runtime path is unavailable." >&2
   exit 1
 fi
-gemini_key=$("$op_bin" read 'op://Shared/LocalEnvironment/GEMINI_API_KEY' 2>/dev/null) || {
+if [ -n "$op_account" ]; then set -- read --account "$op_account" 'op://Shared/LocalEnvironment/GEMINI_API_KEY';
+else set -- read 'op://Shared/LocalEnvironment/GEMINI_API_KEY'; fi
+gemini_key=$("$op_bin" "$@" 2>/dev/null) || {
   echo "Unable to resolve the image MCP credential from 1Password." >&2
   exit 1
 }

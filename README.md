@@ -87,7 +87,8 @@ The installer:
 4. Uses committed lockfiles and `npm ci --ignore-scripts` for reproducible, script-disabled dependencies, including isolated Paperclip, Figma, and image MCP runtimes.
 5. Applies hash-verified hardening to the exact-pinned MCP adapter so untrusted results cannot emit terminal controls and oversized responses are truncated without persistent temp artifacts.
 6. Records absolute Node, 1Password CLI, and home paths in mode-`0600` runtime files so credential-bearing launchers do not trust project-controlled `PATH`, `HOME`, or Node startup hooks.
-7. Installs this checkout as a local Pi package plus the safe permission profile and MCP template.
+7. When multiple 1Password accounts are configured, asks for a unique account hint and stores only the resolved account ID in private runtime configuration.
+8. Installs this checkout as a local Pi package plus the safe permission profile and MCP template.
 
 Options:
 
@@ -123,6 +124,8 @@ The default MCP template expects a 1Password item named `LocalEnvironment` in th
 | item root | `GEMINI_API_KEY` |
 
 Create equivalent references or edit `~/.pi/agent/mcp.json` to match your secret manager. Never replace command references with plaintext in a tracked file.
+
+If the 1Password CLI reports multiple accounts during installation, the installer asks for a unique hint and writes the resolved account ID—not a credential—to `~/.pi/agent/runtime/op-account` with mode `0600`. Hardened launchers read that trusted local selection only after discarding inherited environment overrides. Delete the file and rerun the installer to choose a different account.
 
 Also define these non-secret paths in your shell environment when using the corresponding servers:
 
@@ -164,7 +167,7 @@ To enable Pi → Paperclip access:
 
 1. Create a dedicated board API key with an expiration in the Paperclip UI or another reviewed administrative flow.
 2. Store it as the concealed `PAPERCLIP_PI_BOARD_TOKEN` field referenced above. Store the trusted HTTPS endpoint and company UUID as `PAPERCLIP_API_URL` and `PAPERCLIP_COMPANY_ID` in the same section. `runtime/paperclip-mcp/launch.sh` resolves those fixed references only when the server starts. Never paste the key into `mcp.json`, shell history, logs, or issues.
-3. Ensure the intended 1Password account is active before launching Pi. The hardened launcher deliberately ignores inherited `OP_ACCOUNT`; users with a different item layout, multiple-account requirement, or another secret manager must review and replace the launcher rather than injecting overrides from a project.
+3. Ensure the intended 1Password account is active before launching Pi. With multiple configured accounts, rerun the installer to create the private trusted account selection. The hardened launcher deliberately ignores inherited `OP_ACCOUNT`; users with a different item layout or another secret manager must review and replace the launcher rather than injecting overrides from a project.
 4. Run `/reload`, connect the `paperclip` MCP server, and verify a read tool before approving any mutation.
 5. Record the expiry and rotate or revoke the key on schedule.
 

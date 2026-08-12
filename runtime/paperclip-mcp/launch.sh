@@ -22,10 +22,20 @@ read_trusted_path() {
   printf '%s\n' "$trusted_path"
 }
 
+read_trusted_account() {
+  account_file=$script_dir/../op-account
+  [ -e "$account_file" ] || return 0
+  if [ ! -f "$account_file" ] || [ -L "$account_file" ] || [ ! -r "$account_file" ]; then exit 1; fi
+  IFS= read -r account < "$account_file"
+  case "$account" in ""|*[!A-Za-z0-9-]*) exit 1 ;; esac
+  printf '%s\n' "$account"
+}
+
 if [ "$#" -eq 0 ]; then
   node_bin=$(read_trusted_path node-path)
   op_bin=$(read_trusted_path op-path)
   trusted_home=$(read_trusted_path home-path)
+  op_account=$(read_trusted_account)
   if [ ! -x "$node_bin" ] || [ ! -x "$op_bin" ] || [ ! -d "$trusted_home" ]; then
     echo "Paperclip MCP trusted runtime path is unavailable; rerun the installer." >&2
     exit 1
@@ -33,21 +43,24 @@ if [ "$#" -eq 0 ]; then
   exec /usr/bin/env -i \
     HOME="$trusted_home" \
     PATH='/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin' \
-    /bin/sh "$script_path" --pi-mcp-clean-stage "$node_bin" "$op_bin"
+    /bin/sh "$script_path" --pi-mcp-clean-stage "$node_bin" "$op_bin" "$op_account"
 fi
-if [ "$#" -ne 3 ] || [ "$1" != "--pi-mcp-clean-stage" ]; then
+if [ "$#" -ne 4 ] || [ "$1" != "--pi-mcp-clean-stage" ]; then
   echo "Paperclip MCP rejected an invalid launcher stage." >&2
   exit 1
 fi
 node_bin=$2
 op_bin=$3
+op_account=$4
 if [ ! -x "$node_bin" ] || [ ! -x "$op_bin" ] || [ ! -d "$HOME" ]; then
   echo "Paperclip MCP clean-stage runtime path is unavailable." >&2
   exit 1
 fi
 
 read_secret() {
-  "$op_bin" read "$1" 2>/dev/null || {
+  if [ -n "$op_account" ]; then set -- read --account "$op_account" "$1";
+  else set -- read "$1"; fi
+  "$op_bin" "$@" 2>/dev/null || {
     echo "Unable to resolve required Paperclip MCP configuration from 1Password." >&2
     exit 1
   }

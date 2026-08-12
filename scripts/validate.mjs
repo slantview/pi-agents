@@ -133,7 +133,7 @@ for (const spec of runtimeSpecs) {
     throw new Error(`${spec.server} launcher must not trace or print credential values`);
   }
   const cleanStage = launcher.indexOf("/usr/bin/env -i");
-  const secretRead = launcher.indexOf('"$op_bin" read');
+  const secretRead = launcher.indexOf('"$op_bin" "$@"');
   if (cleanStage === -1 || secretRead === -1 || cleanStage > secretRead || launcher.indexOf("/usr/bin/env -i", cleanStage + 1) !== -1) {
     throw new Error(`${spec.server} must enter its clean stage before resolving a credential and directly exec afterward`);
   }
@@ -143,7 +143,7 @@ for (const field of ["PAPERCLIP_PI_BOARD_TOKEN", "PAPERCLIP_API_URL", "PAPERCLIP
   if (!paperclipLauncher.includes(field)) throw new Error(`Paperclip launcher must resolve trusted ${field}`);
 }
 const opResolver = fs.readFileSync(path.join(root, "runtime/op-read.sh"), "utf8");
-for (const required of ["op-path", "home-path", "/usr/bin/env -i"]) {
+for (const required of ["op-path", "home-path", "op-account", "/usr/bin/env -i"]) {
   if (!opResolver.includes(required)) throw new Error(`Trusted 1Password resolver must include ${required}`);
 }
 if (runtimeSpecs.some(({ runtime }) => !fs.readFileSync(path.join(root, "runtime", runtime, "launch.sh"), "utf8").includes("/usr/bin/env -i"))) {

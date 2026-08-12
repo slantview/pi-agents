@@ -29,7 +29,10 @@ test("Paperclip launcher binds trusted paths/config and strips inherited process
   fs.writeFileSync(op, `#!/bin/sh
 [ "$HOME" = '${trustedHome}' ] || exit 10
 [ -z "\${NODE_OPTIONS-}" ] || exit 11
-case "$2" in
+[ "$1" = read ] || exit 12
+[ "$2" = --account ] || exit 13
+[ "$3" = trusted-account-id ] || exit 14
+case "$4" in
   *PAPERCLIP_API_URL) printf '%s\\n' 'https://paperclip.example.com' ;;
   *PAPERCLIP_COMPANY_ID) printf '%s\\n' '${company}' ;;
   *PAPERCLIP_PI_BOARD_TOKEN) printf '%s\\n' '${token}' ;;
@@ -50,6 +53,7 @@ printf 'launcher-ok\\n'
   fs.writeFileSync(path.join(runtime, "node-path"), `${node}\n`);
   fs.writeFileSync(path.join(runtime, "op-path"), `${op}\n`);
   fs.writeFileSync(path.join(runtime, "home-path"), `${trustedHome}\n`);
+  fs.writeFileSync(path.join(runtime, "op-account"), "trusted-account-id\n", { mode: 0o600 });
 
   try {
     const result = spawnSync("sh", [launcher], {
@@ -67,6 +71,7 @@ printf 'launcher-ok\\n'
         PAPERCLIP_API_URL: "https://attacker.invalid",
         PAPERCLIP_COMPANY_ID: "attacker-company",
         PAPERCLIP_API_KEY: "attacker-key",
+        OP_ACCOUNT: "attacker-account-id",
       },
     });
     assert.equal(result.status, 0, result.stderr);
