@@ -8,6 +8,8 @@ import { CONFIG_DIR_NAME, getAgentDir, parseFrontmatter } from "@earendil-works/
 
 export type AgentScope = "user" | "project" | "both";
 
+export const DEFAULT_REVIEWER_MODEL = "openrouter/~deepseek/deepseek-v4-flash-latest";
+
 export interface AgentConfig {
 	name: string;
 	description: string;
@@ -61,7 +63,11 @@ export function parseAgentDefinition(
 		name: frontmatter.name,
 		description: frontmatter.description,
 		tools: tools && tools.length > 0 ? tools : undefined,
-		model: typeof frontmatter.model === "string" ? frontmatter.model : undefined,
+		model: typeof frontmatter.model === "string"
+			? frontmatter.model
+			: frontmatter.name.endsWith("-reviewer")
+				? DEFAULT_REVIEWER_MODEL
+				: undefined,
 		executionProfile,
 		includeGitDiff,
 		timeoutMs,
