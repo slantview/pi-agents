@@ -159,6 +159,8 @@ A read-only agent integration check should be able to call Zikra, codebase-memor
 
 The change-regression reviewer runs in a lean, read-only child profile: extensions (including MCP integrations), skills, templates, themes, and inherited context files are disabled. The parent supplies a mode-`0600`, bounded snapshot of the exact tracked diff plus regular untracked files as untrusted review context and deletes it after the child exits; oversized snapshots fail closed instead of silently omitting changes. Reviews have a three-minute deadline and report elapsed and first-response timing alongside token usage. This keeps the higher-recall review model while reducing startup context and change-discovery turns.
 
+Subagents whose names end in `-reviewer` default to OpenRouter model [`~deepseek/deepseek-v4-flash-latest`](https://openrouter.ai/~deepseek/deepseek-v4-flash-latest). An explicit `model:` in an agent definition overrides this default. The alias follows the latest DeepSeek V4 Flash release; unavailable OpenRouter authentication or model access fails the child invocation rather than falling back to the parent model. Reviewer prompts, selected repository files, and supplied diff snapshots are disclosed to OpenRouter and its selected inference provider, so do not invoke these reviewers on code that policy forbids sending there.
+
 The image MCP wrapper disables local input-image editing unless `MCP_IMAGE_INPUT_DIR` is explicitly set. When enabled, it resolves real paths and rejects parent, sibling-prefix, and symlink escapes before the upstream package can read or upload a file. Generated outputs remain confined by the separately configured output directory.
 
 ## Optional Paperclip integration

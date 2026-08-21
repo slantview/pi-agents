@@ -24,6 +24,48 @@ Review only changed behavior.
   assert.equal(agent?.timeoutMs, 120_000);
 });
 
+test("parseAgentDefinition defaults reviewers to OpenRouter DeepSeek V4 Flash Latest", () => {
+  const reviewer = parseAgentDefinition(
+    "/agents/security-reviewer.md",
+    "user",
+    `---
+name: security-reviewer
+description: Reviews security
+---
+Review security.
+`,
+  );
+  const specialist = parseAgentDefinition(
+    "/agents/specialist.md",
+    "user",
+    `---
+name: specialist
+description: Investigates behavior
+---
+Investigate behavior.
+`,
+  );
+
+  assert.equal(reviewer?.model, "openrouter/~deepseek/deepseek-v4-flash-latest");
+  assert.equal(specialist?.model, undefined);
+});
+
+test("parseAgentDefinition preserves an explicit reviewer model override", () => {
+  const reviewer = parseAgentDefinition(
+    "/agents/security-reviewer.md",
+    "user",
+    `---
+name: security-reviewer
+description: Reviews security
+model: openrouter/deepseek/deepseek-v3.2
+---
+Review security.
+`,
+  );
+
+  assert.equal(reviewer?.model, "openrouter/deepseek/deepseek-v3.2");
+});
+
 test("parseAgentDefinition rejects invalid or excessive execution limits", () => {
   for (const timeoutMs of ["invalid", "999", "900001"]) {
     assert.throws(
